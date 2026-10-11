@@ -2524,11 +2524,11 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                 app.vk.end_single_use_cmd(cmd);
             }
 
-            // todo this doesnt handle directional alpha
             if group.fix_seams {
                 let start_time = std::time::Instant::now();
 
-                let channels = 3;
+                // let channels = 3;
+                let channels = if directional { 4 } else { 3 };
 
                 fix_seams(
                     pixels,
@@ -2548,7 +2548,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             }
 
             if group.dilate {
-                dilate(pixels, group.width, group.height, 0.0);
+                dilate(pixels, group.width, group.height, 0.5);
             }
 
             // for baking light probes the denoised lightmap could also be used

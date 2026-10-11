@@ -394,7 +394,7 @@ pub fn dilate(pixels: &mut [f32], width: u32, height: u32, alpha_threshold: f32)
 
                         let i = ((sy as usize * mip_size.0 + sx as usize) * 4) as usize;
 
-                        if mip_pixels[i + 3] > 0.5 {
+                        if mip_pixels[i + 3] > alpha_threshold {
                             rgba[0] += mip_pixels[i];
                             rgba[1] += mip_pixels[i + 1];
                             rgba[2] += mip_pixels[i + 2];

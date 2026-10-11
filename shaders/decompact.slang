@@ -1,3 +1,5 @@
+// this code is very messy right now until we figured out how to do it properly
+
 #include "includes/core.slang"
 #include "includes/util.slang"
 
@@ -79,6 +81,52 @@ void DilateLightmap(int2 coords, uint compactedOffset, inout float4 original)
     }
 }
 
+bool DilateNormal(int2 coords, out float3 normalWS)
+{
+    normalWS = 0;
+    if (Push.dilate == 0)
+    {
+        return false;
+    }
+
+    float3 sum = 0.0;
+
+    [loop]
+    for (int dy = -DILATE_RADIUS; dy <= DILATE_RADIUS; dy++)
+    {
+        [loop]
+        for (int dx = -DILATE_RADIUS; dx <= DILATE_RADIUS; dx++)
+        {
+            if (dx == 0 && dy == 0)
+            {
+                continue;
+            }
+
+            uint2 newCoords = coords + int2(dx, dy);
+            uint compactIndex = GetCompactedIndex(float2(newCoords), Push.groupIndex, false);
+
+            if (compactIndex == uint::maxValue)
+            {
+                continue;
+            }
+
+            float3 n = UnpackNormalOctahedron(CompactedVisibility[compactIndex].w);
+
+            float d2 = float(dx * dx + dy * dy);
+            sum += n / (d2 * d2 + 1.0);
+        }
+    }
+
+    float len = length(sum);
+    if (len > 1e-5)
+    {
+        normalWS = sum / len;
+        return true;
+    }
+
+    return false;
+}
+
 float4 EncodeDirectional(float3 directional, float3 diffuse)
 {
     float luminance = Luminance(diffuse);
@@ -132,11 +180,17 @@ void main(uint3 threadID: SV_DispatchThreadID)
     {
         if (Push.lightmapType == 2)
         {
-            // DecompactTarget[linearIndex] = float4(0.5, 0.5, 0.5, 0.0);
+            float3 dir = DecompactTarget[linearIndex].rgb;
+            float alpha = 0.5;
 
-            float3 d = DecompactTarget[linearIndex].rgb;
-            d.z = -d.z;
-            DecompactTarget[linearIndex] = float4(mad(d, 0.5, 0.5), 0.0);
+            float3 n;
+            if (any(dir != 0.0) && DilateNormal(coords, n))
+            {
+                alpha = saturate(dot(dir, n)) * 0.5 + 0.5;
+            }
+
+            dir.z = -dir.z; // unity convention
+            DecompactTarget[linearIndex] = float4(mad(dir, 0.5, 0.5), alpha);
         }
         else
         {

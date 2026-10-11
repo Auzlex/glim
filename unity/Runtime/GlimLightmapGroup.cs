@@ -50,9 +50,9 @@ namespace Glim
         [HideInInspector] public uint lightmapUVHash = 0;
 
 
-        public bool dilate = true;
         public bool denoise = true;
         public bool fixSeams = true;
+        public bool dilate = true;
 
         [Tooltip("When enabled the lightmap group will only be used temporarly during the bake, and discarded after without taking up any space. This allows renderers to contribute to lighting during bake, but use light probes or light volumes instead.")]
         public bool discard = false;
