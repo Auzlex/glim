@@ -1,4 +1,22 @@
 
+# v0.8.0
+
+- Implemented Mesh Renderer component Cast Shadows option
+  - Set to Off to prevent a mesh from casting shadows
+  - Any other value then Off casts shadows from both sides
+  - Useful for having lights inside meshes
+- Implemented Light component No Shadows option
+   - Previously all lights would cast shadows, even if the Shadow Type was set to No Shadows
+- Much less visible seams, especially with directional lightmaps
+- Allow renderers to contribute to baked lighting without taking up lightmap space at runtime
+  - Toggle `Discard` on a lightmap group to skip saving it
+  - Useful for using light probes or light volumes at runtime instead of lightmaps
+  - This feature still requires proper lightmap UVs for best results, as it relies on the Meta pass for albedo and emission
+  - Check https://github.com/z3y/glim/issues/19 for more details
+- New Editor GUI for the GlimLightmapGroupSelector component
+  - `New` button creates a new GlimLightmapGroup scriptable object in the current scene folder
+  - Inlines the editor for the GlimLightmapGroup directly on the selector component for easier edits
+
 # v0.7.0
 
 - Added Ambient Occlusion baking
