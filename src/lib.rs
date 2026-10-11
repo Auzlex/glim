@@ -2456,6 +2456,8 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             app.vk.end_single_use_cmd(cmd);
         };
 
+        let directional = lightmap_type == 1;
+
         unsafe {
             let pixels: &mut [f32] = std::slice::from_raw_parts_mut(
                 staging_buffer_lightmap.ptr as *mut f32,
@@ -2466,8 +2468,6 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                 match &oidn {
                     Some(oidn) => {
                         let start_time = std::time::Instant::now();
-
-                        let directional = lightmap_type == 1;
 
                         (log)(LogMessage::message(&format!(
                             "Denoising Lightmap ({}/{})",
@@ -2495,7 +2495,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             }
 
             // encode directional
-            if lightmap_type == 1 {
+            if directional {
                 push.encode_type = 2;
                 let decompact_push_bytes = as_bytes(&push);
 
@@ -2528,6 +2528,8 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             if group.fix_seams {
                 let start_time = std::time::Instant::now();
 
+                let channels = 3;
+
                 fix_seams(
                     pixels,
                     group.width,
@@ -2535,12 +2537,13 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                     &app.seams,
                     app.config.seams_debug,
                     group_index as u32,
+                    channels,
                 );
 
                 let now = std::time::Instant::now();
                 let elapsed = now.duration_since(start_time).as_secs_f32();
 
-                let message = format!("Seam Fix Complete {}s", elapsed);
+                let message = format!("Fixed {} seams in {}s", app.seams.len(), elapsed);
                 (log)(LogMessage::message(&message));
             }
 

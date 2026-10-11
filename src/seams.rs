@@ -71,12 +71,6 @@ impl Vector2Int {
     }
 }
 
-#[derive(Debug)]
-struct PixelInfo {
-    position: Vector2Int,
-    color: Vector3,
-}
-
 #[inline]
 fn approx_eq_vec3(a: Vector3, b: Vector3) -> bool {
     const EPS: f32 = 0.001;
@@ -422,6 +416,12 @@ pub fn dilate(pixels: &mut [f32], width: u32, height: u32, alpha_threshold: f32)
     }
 }
 
+#[derive(Debug)]
+struct PixelInfo {
+    position: Vector2Int,
+    color: [f32; 4],
+}
+
 pub fn fix_seams(
     pixels: &mut [f32],
     width: u32,
@@ -429,6 +429,7 @@ pub fn fix_seams(
     seams: &[Seam],
     debug: bool,
     group: u32,
+    channels: usize,
 ) {
     let mut sample_points = Vec::new();
 
@@ -460,78 +461,37 @@ pub fn fix_seams(
         return;
     }
 
-    let mut pixel_info = Vec::new();
-    let mut self_pixel_map: HashMap<Vector2Int, usize> = HashMap::new();
-    let mut other_pixel_map: HashMap<Vector2Int, usize> = HashMap::new();
+    let mut pixel_info: Vec<PixelInfo> = Vec::new();
+    let mut pixel_map: HashMap<Vector2Int, usize> = HashMap::new();
+
+    let size = Vector2::new(width as f32, height as f32);
+    let (w, h) = (width as i32, height as i32);
 
     for point in &sample_points {
-        let uv_a = point.uv_a * Vector2::new(width as f32, height as f32) - Vector2::new(0.5, 0.5);
-        let uv_b = point.uv_b * Vector2::new(width as f32, height as f32) - Vector2::new(0.5, 0.5);
+        for (side, uv) in [point.uv_a, point.uv_b].into_iter().enumerate() {
+            let (taps, _) = bilinear_taps(uv * size - Vector2::new(0.5, 0.5), w, h);
 
-        let width = width as i32;
-        let height = height as i32;
-
-        for i in 0..4 {
-            let offset_x = i & 0b01;
-            let offset_y = (i & 0b10) >> 1;
-
-            let pos_self = Vector2Int::new(uv_a.x as i32 + offset_x, uv_a.y as i32 + offset_y);
-            let pos_other = Vector2Int::new(uv_b.x as i32 + offset_x, uv_b.y as i32 + offset_y);
-
-            if !self_pixel_map.contains_key(&pos_self)
-                && pos_self.x >= 0
-                && pos_self.x < width as i32
-                && pos_self.y >= 0
-                && pos_self.y < height as i32
-            {
-                let pixel_index = ((pos_self.y * width + pos_self.x) * 4) as usize;
-
-                let r = pixels[pixel_index];
-                let g = pixels[pixel_index + 1];
-                let b = pixels[pixel_index + 2];
-
-                if debug {
-                    pixels[pixel_index] = 1.0;
-                    pixels[pixel_index + 1] = 0.0;
-                    pixels[pixel_index + 2] = 0.0;
+            for (x, y) in taps {
+                let key = Vector2Int::new(x, y);
+                if pixel_map.contains_key(&key) {
+                    continue;
                 }
 
-                let color = Vector3::new(r, g, b);
-
-                pixel_info.push(PixelInfo {
-                    position: pos_self.clone(),
-                    color,
-                });
-
-                self_pixel_map.insert(pos_self, pixel_info.len() - 1);
-            }
-
-            if !other_pixel_map.contains_key(&pos_other)
-                && pos_other.x >= 0
-                && pos_other.x < width as i32
-                && pos_other.y >= 0
-                && pos_other.y < height as i32
-            {
-                let pixel_index = ((pos_other.y * width + pos_other.x) * 4) as usize;
-
-                let r = pixels[pixel_index];
-                let g = pixels[pixel_index + 1];
-                let b = pixels[pixel_index + 2];
+                let i = ((y * w + x) * 4) as usize;
+                let color = [pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]];
 
                 if debug {
-                    pixels[pixel_index] = 0.0;
-                    pixels[pixel_index + 1] = 1.0;
-                    pixels[pixel_index + 2] = 0.0;
+                    // side 0 = red, side 1 = green
+                    pixels[i] = if side == 0 { 1.0 } else { 0.0 };
+                    pixels[i + 1] = if side == 0 { 0.0 } else { 1.0 };
+                    pixels[i + 2] = 0.0;
                 }
 
-                let color = Vector3::new(r, g, b);
-
+                pixel_map.insert(key.clone(), pixel_info.len());
                 pixel_info.push(PixelInfo {
-                    position: pos_other.clone(),
+                    position: key,
                     color,
                 });
-
-                other_pixel_map.insert(pos_other, pixel_info.len() - 1);
             }
         }
     }
@@ -548,16 +508,8 @@ pub fn fix_seams(
 
     let total_pixels = pixel_info.len();
     let mut at_a = SparseMat::new(total_pixels, total_pixels);
-    let mut at_bs = [
-        VectorX::new(total_pixels),
-        VectorX::new(total_pixels),
-        VectorX::new(total_pixels),
-    ];
-    let mut guesses = [
-        VectorX::new(total_pixels),
-        VectorX::new(total_pixels),
-        VectorX::new(total_pixels),
-    ];
+    let mut at_bs: Vec<VectorX> = (0..channels).map(|_| VectorX::new(total_pixels)).collect();
+    let mut guesses: Vec<VectorX> = (0..channels).map(|_| VectorX::new(total_pixels)).collect();
 
     setup_least_squares(
         width,
@@ -565,33 +517,43 @@ pub fn fix_seams(
         edge_constraint_weight,
         &sample_points,
         &pixel_info,
-        self_pixel_map,
-        other_pixel_map,
+        &pixel_map,
         &mut at_a,
         &mut at_bs,
         &mut guesses,
     );
 
-    let solution0 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[0], &at_bs[0], iterations, tolerance);
-    let solution1 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[1], &at_bs[1], iterations, tolerance);
-    let solution2 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[2], &at_bs[2], iterations, tolerance);
+    let solutions: Vec<VectorX> = (0..channels)
+        .into_par_iter()
+        .map(|c| conjugate_gradient_optimize(&at_a, &guesses[c], &at_bs[c], iterations, tolerance))
+        .collect();
 
-    let solutions = [solution0, solution1, solution2];
-
-    let width = width as i32;
-
-    for i in 0..total_pixels {
-        let pixel = &pixel_info[i];
-        let r = solutions[0][i];
-        let g = solutions[1][i];
-        let b = solutions[2][i];
-        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 0] = r;
-        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 1] = g;
-        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 2] = b;
+    for (i, pixel) in pixel_info.iter().enumerate() {
+        let base = ((pixel.position.y * w + pixel.position.x) as usize) * 4;
+        for c in 0..channels {
+            pixels[base + c] = solutions[c][i];
+        }
     }
+}
+
+/// 4 bilinear taps (clamped to the image, never wrapped) plus their weights.
+fn bilinear_taps(sample: Vector2, width: i32, height: i32) -> ([(i32, i32); 4], [f32; 4]) {
+    let fx0 = sample.x.floor();
+    let fy0 = sample.y.floor();
+    let fx = sample.x - fx0;
+    let fy = sample.y - fy0;
+    let (x0, y0) = (fx0 as i32, fy0 as i32);
+
+    let taps = [(x0, y0), (x0 + 1, y0), (x0 + 1, y0 + 1), (x0, y0 + 1)]
+        .map(|(x, y)| (x.clamp(0, width - 1), y.clamp(0, height - 1)));
+
+    let weights = [
+        (1.0 - fx) * (1.0 - fy),
+        fx * (1.0 - fy),
+        fx * fy,
+        (1.0 - fx) * fy,
+    ];
+    (taps, weights)
 }
 
 fn bilinear_sample(
@@ -603,47 +565,10 @@ fn bilinear_sample(
     ixs: &mut [usize; 4],
     weights: &mut [f32; 4],
 ) {
-    let truncu = sample.x as i32;
-    let truncv = sample.y as i32;
-
-    let xs = [truncu, truncu + 1, truncu + 1, truncu];
-    let ys = [truncv, truncv, truncv + 1, truncv + 1];
-
+    let (taps, w) = bilinear_taps(sample, width as i32, height as i32);
     for i in 0..4 {
-        let x = (xs[i].rem_euclid(width as i32)) as i32;
-        let y = (ys[i].rem_euclid(height as i32)) as i32;
-
-        // todo something fails here
-        let key = Vector2Int { x, y };
-        // ixs[i] = *pixel_map.get(&key).unwrap();
-
-        if let Some(&pixel_idx) = pixel_map.get(&key) {
-            ixs[i] = pixel_idx;
-        } else {
-            let x = xs[i].clamp(0, width as i32 - 1);
-            let y = ys[i].clamp(0, height as i32 - 1);
-
-            // todo something fails here
-            let key = Vector2Int { x, y };
-            if let Some(&pixel_idx) = pixel_map.get(&key) {
-                ixs[i] = pixel_idx;
-            } else {
-                println!("no pixel");
-                ixs[i] = 0;
-            }
-        }
-    }
-
-    let frac_x = sample.x - truncu as f32;
-    let frac_y = sample.y - truncv as f32;
-
-    weights[0] = (1.0 - frac_x) * (1.0 - frac_y);
-    weights[1] = frac_x * (1.0 - frac_y);
-    weights[2] = frac_x * frac_y;
-    weights[3] = (1.0 - frac_x) * frac_y;
-
-    for i in 0..4 {
-        weights[i] *= weight;
+        ixs[i] = pixel_map[&Vector2Int::new(taps[i].0, taps[i].1)];
+        weights[i] = w[i] * weight;
     }
 }
 
@@ -653,8 +578,7 @@ fn setup_least_squares(
     edge_constraint_weight: f32,
     sample_points: &[SamplePoint],
     pixel_info: &[PixelInfo],
-    self_pixel_map: HashMap<Vector2Int, usize>,
-    other_pixel_map: HashMap<Vector2Int, usize>,
+    pixel_map: &HashMap<Vector2Int, usize>,
     at_a: &mut SparseMat,
     at_bs: &mut [VectorX],
     guesses: &mut [VectorX],
@@ -672,7 +596,7 @@ fn setup_least_squares(
             point.uv_b * Vector2::new(width as f32, height as f32) - Vector2::new(0.5, 0.5);
 
         bilinear_sample(
-            &self_pixel_map,
+            &pixel_map,
             scaled_uv_a,
             width,
             height,
@@ -682,7 +606,7 @@ fn setup_least_squares(
         );
 
         bilinear_sample(
-            &other_pixel_map,
+            &pixel_map,
             scaled_uv_b,
             width,
             height,
@@ -724,19 +648,14 @@ fn setup_least_squares(
         }
     }
 
-    for i in 0..pixel_info.len() {
-        let pixel = &pixel_info[i];
-
+    for (i, pixel) in pixel_info.iter().enumerate() {
         let val = at_a.get(i, i);
         at_a.set(i, i, val + 1.0);
 
-        at_bs[0][i] = pixel.color.x;
-        at_bs[1][i] = pixel.color.y;
-        at_bs[2][i] = pixel.color.z;
-
-        guesses[0][i] = pixel.color.x;
-        guesses[1][i] = pixel.color.y;
-        guesses[2][i] = pixel.color.z;
+        for c in 0..at_bs.len() {
+            at_bs[c][i] = pixel.color[c];
+            guesses[c][i] = pixel.color[c];
+        }
     }
 }
 
@@ -762,18 +681,25 @@ fn conjugate_gradient_optimize(
 
     p.copy_from(&r);
     let mut rsq = VectorX::dot(&r, &r);
+    if rsq == 0.0 {
+        return x;
+    }
 
     for _ in 0..num_iterations {
         SparseMat::mul(&mut ap, a, &p);
 
-        let alpha = rsq / VectorX::dot(&p, &ap);
+        let denom = VectorX::dot(&p, &ap);
+        if denom.abs() < 1e-20 {
+            break;
+        }
+        let alpha = rsq / denom;
 
         x.add_scaled(&p, alpha);
         r.add_scaled(&ap, -alpha);
 
         let rsq_new = VectorX::dot(&r, &r);
 
-        if (rsq_new - rsq).abs() < tolerance * (n as f32) {
+        if rsq_new < tolerance * tolerance * n as f32 {
             break;
         }
 
@@ -840,7 +766,7 @@ impl Row {
     fn get_column_index_and_grow_if_needed(&mut self, column: usize) -> usize {
         let index = self.find_closest_index(column);
 
-        if self.size == 0 || index >= self.indices.len() || self.indices[index] != column {
+        if self.size == 0 || index >= self.size || self.indices[index] != column {
             if self.size == self.capacity {
                 self.grow();
             }

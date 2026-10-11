@@ -132,7 +132,11 @@ void main(uint3 threadID: SV_DispatchThreadID)
     {
         if (Push.lightmapType == 2)
         {
-            DecompactTarget[linearIndex] = float4(0.5, 0.5, 0.5, 0.0);
+            // DecompactTarget[linearIndex] = float4(0.5, 0.5, 0.5, 0.0);
+
+            float3 d = DecompactTarget[linearIndex].rgb;
+            d.z = -d.z;
+            DecompactTarget[linearIndex] = float4(mad(d, 0.5, 0.5), 0.0);
         }
         else
         {
