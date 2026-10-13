@@ -25,8 +25,8 @@ namespace Glim
     public enum MixedLightMode : uint
     {
         BakedIndirect = 0,
-        // Subtractive = 1, // TODO
-        Shadowmask = 2, // TODO
+        // Subtractive = 1, // todo
+        Shadowmask = 2,
     }
 
     public class GlimLightmapper : MonoBehaviour

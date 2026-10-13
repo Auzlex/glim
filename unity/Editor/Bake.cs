@@ -292,7 +292,7 @@ namespace Glim
                         lightmapBytes += new FileInfo(path).Length;
                     }
 
-                    if (_context.mixedMode != MixedLightMode.BakedIndirect && File.Exists(Path.Combine(_context.outputDir, shadowMaskName)))
+                    if (_context.mixedMode == MixedLightMode.Shadowmask && File.Exists(Path.Combine(_context.outputDir, shadowMaskName)))
                     {
                         var path = Path.Combine(_context.outputDir, shadowMaskName);
                         var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);

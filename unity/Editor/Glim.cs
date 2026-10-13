@@ -344,7 +344,7 @@ namespace Glim
 
             var lightsArray = addedLights.ToArray();
             List<int> occlusionChannels = new();
-            if (mixedMode != MixedLightingMode.IndirectOnly)
+            if (mixedMode == MixedLightingMode.Shadowmask)
             {
                 occlusionChannels = ShadowMaskChannelAssigner.Assign(lightsArray);
             }
