@@ -224,13 +224,14 @@ namespace Glim
 
                     var diffuseName = $"Lightmap-{groupIndex}_Diffuse.exr";
                     var directionalName = $"Lightmap-{groupIndex}_Directional.tga";
+                    var shadowMaskName = $"Lightmap-{groupIndex}_ShadowMask.tga";
 
                     {
                         string metaPath = Path.Combine(_context.outputDir, $"{diffuseName}.meta");
                         if (!File.Exists(metaPath))
                         {
                             var guid = GUID.Generate().ToString();
-                            var yaml = CreateTextureImporterMeta(guid, false);
+                            var yaml = CreateTextureImporterMeta(guid, 0);
                             File.WriteAllText(metaPath, yaml);
                         }
                     }
@@ -241,7 +242,18 @@ namespace Glim
                         if (!File.Exists(metaPath))
                         {
                             var guid = GUID.Generate().ToString();
-                            var yaml = CreateTextureImporterMeta(guid, true);
+                            var yaml = CreateTextureImporterMeta(guid, 1);
+                            File.WriteAllText(metaPath, yaml);
+                        }
+                    }
+
+                    if (File.Exists(Path.Combine(_context.outputDir, shadowMaskName)))
+                    {
+                        string metaPath = Path.Combine(_context.outputDir, $"{shadowMaskName}.meta"); // todo shadow mask type
+                        if (!File.Exists(metaPath))
+                        {
+                            var guid = GUID.Generate().ToString();
+                            var yaml = CreateTextureImporterMeta(guid, 2);
                             File.WriteAllText(metaPath, yaml);
                         }
                     }
@@ -261,6 +273,7 @@ namespace Glim
                     var groupAsset = _context.groups[groupIndex].groupAsset;
                     var diffuseName = $"Lightmap-{groupIndex}_Diffuse.exr";
                     var directionalName = $"Lightmap-{groupIndex}_Directional.tga";
+                    var shadowMaskName = $"Lightmap-{groupIndex}_ShadowMask.tga";
 
                     {
                         var path = Path.Combine(_context.outputDir, diffuseName);
@@ -276,6 +289,15 @@ namespace Glim
                         var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
                         lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
                         lightmapDatas[groupIndex].lightmapDir = loadedAsset;
+                        lightmapBytes += new FileInfo(path).Length;
+                    }
+
+                    if (_context.mixedMode != MixedLightMode.BakedIndirect && File.Exists(Path.Combine(_context.outputDir, shadowMaskName)))
+                    {
+                        var path = Path.Combine(_context.outputDir, shadowMaskName);
+                        var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                        lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
+                        lightmapDatas[groupIndex].shadowMask = loadedAsset;
                         lightmapBytes += new FileInfo(path).Length;
                     }
                 }
@@ -784,10 +806,19 @@ namespace Glim
 
         }
 
-        public static string CreateTextureImporterMeta(string guid, bool directional)
+        public static string CreateTextureImporterMeta(string guid, int type)
         {
-            int alphaUsage = directional ? 1 : 0;
-            int textureType = directional ? 12 : 6;
+            int alphaUsage = type > 0 ? 1 : 0;
+            int textureType = 6;
+
+            if (type == 1) // dir
+            {
+                textureType = 12;
+            }
+            if (type == 2) // shadowmask
+            {
+                textureType = 11;
+            }
             string yaml = $@"
 fileFormatVersion: 2
 guid: {guid}

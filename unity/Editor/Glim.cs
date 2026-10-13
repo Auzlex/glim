@@ -109,6 +109,7 @@ namespace Glim
 
         public string outputDir;
         public LightmapMode lightmapMode;
+        public MixedLightMode mixedMode;
         public bool isPreview;
 
         public Color[] skyboxPixels;
@@ -332,6 +333,7 @@ namespace Glim
             }
 
 
+            this.mixedMode = lightmapper.mixedMode;
             var mixedMode = lightmapper.mixedMode switch
             {
                 MixedLightMode.BakedIndirect => MixedLightingMode.IndirectOnly,
@@ -339,7 +341,6 @@ namespace Glim
                 MixedLightMode.Shadowmask => MixedLightingMode.Shadowmask,
                 _ => MixedLightingMode.IndirectOnly,
             };
-
 
             var lightsArray = addedLights.ToArray();
             List<int> occlusionChannels = new();
