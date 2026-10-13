@@ -46,7 +46,7 @@ Easy to use, lightweight (only ~1MB) and works with Unity light components.
 - [ ] Terrain Trees Support
 - [x] Mixed Lights
   - [x] Baked Indirect
-  - [ ] Shadowmask
+  - [x] Shadowmask
   - [ ] Subtractive
 - [x] Ambient Occlusion
 - [ ] URP Adaptive Probe Volumes
