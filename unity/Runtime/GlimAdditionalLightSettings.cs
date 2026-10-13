@@ -14,11 +14,16 @@ namespace Glim
         public Texture2D areaCookie;
 
 #if UNITY_EDITOR
-        // todo draw shadow radius too
         void OnDrawGizmosSelected()
         {
             var light = GetComponent<Light>();
-            if (light && light.type == LightType.Spot)
+
+            if (!light)
+            {
+                return;
+            }
+
+            if (light.type == LightType.Spot)
             {
                 float range = light.range;
                 float radius = range * Mathf.Tan(light.innerSpotAngle * 0.5f * Mathf.Deg2Rad);
@@ -41,6 +46,13 @@ namespace Glim
                 Gizmos.DrawLine(Vector3.zero, new Vector3(0f, radius, range));
                 Gizmos.DrawLine(Vector3.zero, new Vector3(0f, -radius, range));
             }
+
+            if ((light.type == LightType.Spot || light.type == LightType.Point) && light.shadowRadius > 0.0f)
+            {
+                Gizmos.color = Color.darkSlateGray;
+                Gizmos.DrawWireSphere(transform.position, light.shadowRadius);
+            }
+
         }
 #endif
     }
