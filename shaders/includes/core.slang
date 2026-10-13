@@ -773,7 +773,7 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
     return color;
 }
 
-bool ShadowMaskVisibility(Light light, float3 positionWS)
+bool ShadowMaskVisibility(Light light, float3 positionWS, out float3 L)
 {
     Ray shadowRay;
     shadowRay.P = positionWS;
@@ -785,18 +785,20 @@ bool ShadowMaskVisibility(Light light, float3 positionWS)
     {
         shadowRay.D = light.direction;
         shadowRay.tMax = RAY_MAX;
+
+        L = light.position;
     }
     else
     {
         float3 positionToLight = light.position - positionWS;
         float distanceSquare = dot(positionToLight, positionToLight);
 
+        L = normalize(positionToLight);
+
         if (distanceSquare > (light.range * light.range))
         {
             return false;
         }
-
-        float3 L = normalize(positionToLight);
 
         if (ty == LightType::Spot)
         {

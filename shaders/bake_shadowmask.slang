@@ -37,6 +37,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float4 visibility = CompactedVisibility[compactedIndex];
     float3 positionWS = visibility.xyz;
+    float3 normalWS = UnpackNormalOctahedron(visibility.w);
 
     uint lightsStart = Push.lightsStart;
     uint lightsCount = Push.lightsCount;
@@ -53,9 +54,15 @@ void main(uint3 threadID: SV_DispatchThreadID)
             continue;
         }
 
-        if (ShadowMaskVisibility(light, positionWS))
+        float3 L;
+
+        if (ShadowMaskVisibility(light, positionWS, L))
         {
-            occlusionChannels[channel] = 1.0;
+            float NoL = saturate(dot(normalWS, L));
+            if (NoL > 0.0)
+            {
+                occlusionChannels[channel] = 1.0;
+            }
         }
     }
 
