@@ -814,5 +814,5 @@ bool ShadowMaskVisibility(Light light, float3 positionWS)
         shadowRay.tMax = sqrt(distanceSquare);
     }
 
-    return TraceShadowRay(shadowRay);
+    return !TraceShadowRay(shadowRay);
 }
