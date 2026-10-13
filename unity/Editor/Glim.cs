@@ -376,9 +376,16 @@ namespace Glim
                     outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = 0;
                     outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = occlusionChannel;
 
+                    var mixedLightingMode = mixedMode;
+
+                    if (occlusionChannel == -1)
+                    {
+                        mixedLightingMode = MixedLightingMode.IndirectOnly;
+                    }
+
                     var mode = outputElement.FindPropertyRelative("lightmapBakeMode");
                     mode.FindPropertyRelative("lightmapBakeType").intValue = (int)light.lightmapBakeType;
-                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)mixedMode;
+                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)mixedLightingMode;
 
                     outputElement.FindPropertyRelative("isBaked").boolValue = true;
 

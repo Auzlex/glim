@@ -49,7 +49,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
         Light light = Lights[lightIndex];
 
         uint channel = light.OcclusionChannel();
-        if (channel > 3)
+        bool shadows = light.CastShadows();
+        if (channel > 3 || !shadows)
         {
             continue;
         }

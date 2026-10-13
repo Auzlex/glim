@@ -131,6 +131,11 @@ public static class ShadowMaskChannelAssigner
         if (light == null) return false;
         if (GetBakeType(light) != LightmapBakeType.Mixed) return false;
 
+        if (light.shadows == LightShadows.None)
+        {
+            return false;
+        }
+
         Transform t = light.transform;
         v.pos = t.position;
         v.range = light.range;
