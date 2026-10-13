@@ -348,13 +348,13 @@ namespace Glim
                     var ids = lightsProp.GetArrayElementAtIndex(i);
 
                     outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = 0;
-                    outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = -1;
+                    outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = light.bakingOutput.occlusionMaskChannel;
 
                     var mixedMode = lightmapper.mixedMode switch
                     {
                         MixedLightMode.BakedIndirect => MixedLightingMode.IndirectOnly,
                         // MixedLightMode.Subtractive => MixedLightingMode.Subtractive,
-                        // MixedLightMode.Shadowmask => MixedLightingMode.Shadowmask,
+                        MixedLightMode.Shadowmask => MixedLightingMode.Shadowmask,
                         _ => MixedLightingMode.IndirectOnly,
                     };
 

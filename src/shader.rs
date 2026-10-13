@@ -15,6 +15,7 @@ pub enum ShaderName {
     BakeDirectEmission,
     AdjustSamples,
     Preview,
+    ShadowMask,
 }
 
 pub fn load_shader_bytes(name: ShaderName) -> Vec<u32> {
@@ -32,6 +33,7 @@ pub fn load_shader_bytes(name: ShaderName) -> Vec<u32> {
         ShaderName::Preview => include_bytes!(concat!(env!("OUT_DIR"), "/preview.spv")),
         ShaderName::BakeDirectLight => include_bytes!(concat!(env!("OUT_DIR"), "/bake_direct_light.spv")),
         ShaderName::BakeDirectEmission => include_bytes!(concat!(env!("OUT_DIR"), "/bake_direct_emission.spv")),
+        ShaderName::ShadowMask => include_bytes!(concat!(env!("OUT_DIR"), "/bake_shadowmask.spv")),
     };
 
     let aligned = bytes

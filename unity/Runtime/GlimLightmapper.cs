@@ -26,7 +26,7 @@ namespace Glim
     {
         BakedIndirect = 0,
         // Subtractive = 1, // TODO
-        // Shadowmask = 2, // TODO
+        Shadowmask = 2, // TODO
     }
 
     public class GlimLightmapper : MonoBehaviour

@@ -772,3 +772,47 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
 
     return color;
 }
+
+bool ShadowMaskVisibility(Light light, float3 positionWS)
+{
+    Ray shadowRay;
+    shadowRay.P = positionWS;
+    shadowRay.tMin = 0;
+
+    LightType ty = light.Type();
+
+    if (ty == LightType::Directional)
+    {
+        shadowRay.D = light.direction;
+        shadowRay.tMax = RAY_MAX;
+    }
+    else
+    {
+        float3 positionToLight = light.position - positionWS;
+        float distanceSquare = dot(positionToLight, positionToLight);
+
+        if (distanceSquare > (light.range * light.range))
+        {
+            return false;
+        }
+
+        float3 L = normalize(positionToLight);
+
+        if (ty == LightType::Spot)
+        {
+            float spotScale;
+            float spotOffset;
+            SpotLightScaleOffset(light.SpotOuter, light.SpotInnerPercent, spotScale, spotOffset);
+
+            if (SpotLightAngleAttenuation(light.direction, L, spotScale, spotOffset) <= 0.0)
+            {
+                return false;
+            }
+        }
+
+        shadowRay.D = L;
+        shadowRay.tMax = sqrt(distanceSquare);
+    }
+
+    return TraceShadowRay(shadowRay);
+}

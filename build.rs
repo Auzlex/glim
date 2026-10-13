@@ -96,6 +96,12 @@ fn main() {
         dst: "decompact.spv".into(),
     });
 
+    shaders.push(Shader {
+        ty: ShaderType::Compute,
+        src: "bake_shadowmask.slang".into(),
+        dst: "bake_shadowmask.spv".into(),
+    });
+
     for shader in shaders {
         let shader_path = shader_dir.join(shader.src);
         let spv_path = out_dir.join(shader.dst);

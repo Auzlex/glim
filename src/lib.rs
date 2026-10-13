@@ -2641,6 +2641,10 @@ unsafe fn render_lightmaps(app: &mut Glim) {
 
     drop(oidn);
 
+    for lightmap_index in 0..app.groups.len() {
+        bake_shadowmask(app, &staging_buffer_lightmap, lightmap_index);
+    }
+
     decompact_shader.destroy(&app.vk);
     compacted_visibility.destroy(&app.vk);
     staging_buffer_lightmap.destroy(&app.vk);
@@ -2784,4 +2788,120 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     let now = std::time::Instant::now();
     let elapsed = now.duration_since(bake_start_time).as_secs_f32();
     println!("Bake Complete in {}s", elapsed);
+}
+
+fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize) {
+    let mut requires_shadowmask = false;
+    for l in &app.cpu_lights {
+        if l.occlusion_channel != u8::MAX {
+            requires_shadowmask = true;
+            break;
+        }
+    }
+
+    if !requires_shadowmask {
+        return;
+    }
+
+    let log = app.config.log_callback;
+
+    let group = &app.groups[lightmap_index].settings;
+    if group.discard {
+        return;
+    }
+
+    let resolution = group.width;
+
+    (log)(LogMessage::message(&format!(
+        "Baking Shadowmask ({}/{})",
+        lightmap_index + 1,
+        app.groups.len()
+    )));
+
+    #[repr(C)]
+    pub struct PushConstants {
+        pub lights_start: u32,
+        pub lights_count: u32,
+        pub resolution: u32,
+        pub lightmap_group: u32,
+
+        pub pixels_address: u64,
+    }
+
+    let albedos = app.albedo_array.views();
+    let emissions = app.emission_array.views();
+    let cookies = app.cookie_array.views();
+
+    let shader_bindings = ShaderBindings {
+        tlas: app.tlas.acceleration_structure,
+        albedos: &albedos,
+        emissions: &emissions,
+        skybox: app.skybox.view(),
+        skybox_sampler: app.skybox.sampler(),
+        visibility: vk::ImageView::null(),
+        preview_diffuse: vk::ImageView::null(),
+        cookies: &cookies,
+        linear_sampler: app.linear_sampler,
+    };
+
+    let mut shader = load_compute_shader(
+        &app.vk,
+        ShaderName::ShadowMask,
+        &app.constants,
+        &shader_bindings,
+        size_of::<PushConstants>(),
+    );
+    update_compute_shader(&app.vk, &shader, &shader_bindings);
+
+    let push = PushConstants {
+        lights_start: 0,
+        lights_count: app.cpu_lights.len() as u32,
+        resolution: resolution,
+        lightmap_group: lightmap_index as u32,
+        pixels_address: pixel_buffer.gpu_address,
+    };
+    let push_bytes = as_bytes(&push);
+
+    let cmd = app.vk.begin_single_use_cmd();
+    unsafe {
+        let vk = &app.vk.device;
+        vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+        vk.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            shader.pipeline_layout,
+            0,
+            &[shader.descriptor_set],
+            &[],
+        );
+        vk.cmd_push_constants(
+            cmd,
+            shader.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &push_bytes,
+        );
+        vk.cmd_dispatch(cmd, resolution / 8, resolution / 8, 1);
+    }
+    app.vk.end_single_use_cmd(cmd);
+
+    shader.destroy(&app.vk);
+
+    let pixels: &[f32] = unsafe {
+        std::slice::from_raw_parts(
+            pixel_buffer.ptr as *const f32,
+            (resolution * resolution * 4) as usize,
+        )
+    };
+
+    let path = app
+        .output_dir
+        .join(format!("Lightmap-{}_ShadowMask.tga", lightmap_index));
+
+    if let Err(err) = save_tga(path, resolution as usize, resolution as usize, pixels, true) {
+        (log)(LogMessage::message(&format!(
+            "Failed to save shadowmask: {}",
+            err
+        )));
+    }
 }
