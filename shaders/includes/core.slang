@@ -804,7 +804,7 @@ bool ShadowMaskVisibility(Light light, float3 positionWS, out float3 L)
         {
             float spotScale;
             float spotOffset;
-            SpotLightScaleOffset(light.SpotOuter, light.SpotInnerPercent, spotScale, spotOffset);
+            SpotLightScaleOffset(light.SpotOuter + 1, light.SpotInnerPercent, spotScale, spotOffset);
 
             if (SpotLightAngleAttenuation(light.direction, L, spotScale, spotOffset) <= 0.0)
             {
