@@ -711,7 +711,7 @@ namespace Glim
                     // free
                     ctx.sceneMesh = new();
 
-                    foreach (var light in ctx.sceneLights)
+                    foreach (var light in ctx.bakeLights)
                     {
                         Bindings.app_add_light(app, light);
                     }

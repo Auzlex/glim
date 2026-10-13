@@ -90,7 +90,7 @@ namespace Glim
 
     public class BakeContext
     {
-        public List<Bindings.Light> sceneLights = new();
+        public List<Bindings.Light> bakeLights = new();
         public List<LightCookieData> cookies = new();
         public List<Glim.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
@@ -234,6 +234,7 @@ namespace Glim
                     occlusion_channel = -1,
                 };
 
+
 #if UNITY_2023_1_OR_NEWER
                 l.area_or_cookie_size = light.cookieSize2D;
 #else
@@ -303,7 +304,7 @@ namespace Glim
 
 
                 addedLights.Add(light);
-                sceneLights.Add(l);
+                bakeLights.Add(l);
             }
 
             foreach (var cookie in uniqueCookies)
@@ -331,9 +332,24 @@ namespace Glim
             }
 
 
+            var mixedMode = lightmapper.mixedMode switch
+            {
+                MixedLightMode.BakedIndirect => MixedLightingMode.IndirectOnly,
+                // MixedLightMode.Subtractive => MixedLightingMode.Subtractive,
+                MixedLightMode.Shadowmask => MixedLightingMode.Shadowmask,
+                _ => MixedLightingMode.IndirectOnly,
+            };
+
+
+            var lightsArray = addedLights.ToArray();
+            List<int> occlusionChannels = new();
+            if (mixedMode != MixedLightingMode.IndirectOnly)
+            {
+                occlusionChannels = ShadowMaskChannelAssigner.Assign(lightsArray);
+            }
+
             if (!config.is_preview)
             {
-                var lightsArray = addedLights.ToArray();
                 var lightsProp = lda.FindProperty("m_Lights");
                 var lightsOutputsProp = lda.FindProperty("m_LightBakingOutputs");
                 Debug.Assert(lightsProp != null);
@@ -341,22 +357,23 @@ namespace Glim
 
                 lightsProp.arraySize = lightsArray.Length;
                 lightsOutputsProp.arraySize = lightsArray.Length;
-                for (int i = 0; i < lightsArray.Length; i++)
+                for (int lightIndex = 0; lightIndex < lightsArray.Length; lightIndex++)
                 {
-                    var light = lightsArray[i];
-                    var outputElement = lightsOutputsProp.GetArrayElementAtIndex(i);
-                    var ids = lightsProp.GetArrayElementAtIndex(i);
+                    var light = lightsArray[lightIndex];
+                    var outputElement = lightsOutputsProp.GetArrayElementAtIndex(lightIndex);
+                    var ids = lightsProp.GetArrayElementAtIndex(lightIndex);
+
+                    int occlusionChannel = -1;
+                    if (occlusionChannels.Count > 0)
+                    {
+                        occlusionChannel = occlusionChannels[lightIndex];
+                        var l = bakeLights[lightIndex];
+                        l.occlusion_channel = (sbyte)occlusionChannel;
+                        bakeLights[lightIndex] = l;
+                    }
 
                     outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = 0;
-                    outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = light.bakingOutput.occlusionMaskChannel;
-
-                    var mixedMode = lightmapper.mixedMode switch
-                    {
-                        MixedLightMode.BakedIndirect => MixedLightingMode.IndirectOnly,
-                        // MixedLightMode.Subtractive => MixedLightingMode.Subtractive,
-                        MixedLightMode.Shadowmask => MixedLightingMode.Shadowmask,
-                        _ => MixedLightingMode.IndirectOnly,
-                    };
+                    outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = occlusionChannel;
 
                     var mode = outputElement.FindPropertyRelative("lightmapBakeMode");
                     mode.FindPropertyRelative("lightmapBakeType").intValue = (int)light.lightmapBakeType;
