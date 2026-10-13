@@ -7,27 +7,67 @@ enum LightType : uint
     Disc = 4,
 };
 
+// #[repr(C)]
+// #[derive(Debug)]
+// pub struct Light {
+//     pub position: Vector3,
+//     pub ty: LightType,
+//     pub cast_shadows: bool,
+//     pub mixed: bool,
+//     pub occlusion_channel: u8,
+
+//     pub direction: Vector3,
+//     pub range: f32,
+
+//     pub color: Vector3,
+//     pub shadow_radius_or_angle: f32,
+
+//     pub spot_inner_percent: f32,
+//     pub spot_outer: f32,
+//     pub area_or_cookie_size: Vector2,
+
+//     pub up: Vector3,
+//     pub cookie: u32,
+// }
+
 struct Light
 {
     float3 position;
-    LightType type;
+    // LightType type;
+    uint data0;
 
     float3 direction;
     float range;
 
     float3 color;
-    float ShadowRangeOrAngle;
+    float ShadowRadiusOrAngle;
 
     float SpotInnerPercent;
     float SpotOuter;
-    float2 AreaSizeOrDiscRadius;
+    float2 AreaOrCookieSize;
 
     float3 up;
-    uint mixed;
-
-    float2 cookieSize;
     uint cookie;
-    uint castShadows;
+
+    LightType Type()
+    {
+        return (LightType)(this.data0 & 0x000000FF);
+    }
+
+    bool CastShadows()
+    {
+        return (this.data0 & 0x0000FF00) != 0;
+    }
+
+    bool Mixed()
+    {
+        return (this.data0 & 0x00FF0000) != 0;
+    }
+
+    uint OcclusionChannel()
+    {
+        return ((this.data0 & 0xFF000000) >> 24);
+    }
 };
 
 void CreateOrthoBasis(float3 n, out float3 b1, out float3 b2)

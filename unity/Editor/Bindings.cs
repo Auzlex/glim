@@ -204,7 +204,7 @@ namespace Glim
             [MarshalAs(UnmanagedType.I1)] public bool no_shadows;
         }
 
-        public enum LightType : uint
+        public enum LightType : byte
         {
             Directional = 0,
             Point = 1,
@@ -218,6 +218,9 @@ namespace Glim
         {
             public Vector3 position;
             public LightType ty;
+            public byte cast_shadows;
+            public byte mixed;
+            public sbyte occlusion_channel;
 
             public Vector3 direction;
             public float range;
@@ -227,14 +230,10 @@ namespace Glim
 
             public float spot_inner_percent;
             public float spot_outer;
-            public Vector2 area_size;
+            public Vector2 area_or_cookie_size;
 
             public Vector3 up;
-            public uint mixed;
-
-            public Vector2 cookieSize;
             public uint cookie;
-            public uint cast_shadows;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 16)]

@@ -631,10 +631,12 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
     float3 right = normalize(cross(light.up, fwd));
     float3 up = light.up;
 
+    LightType ty = light.Type();
+
     float falloff;
-    if (light.type == LightType::Directional)
+    if (ty == LightType::Directional)
     {
-        L = GetDirectionalLightAngle(light.direction, light.ShadowRangeOrAngle, xi);
+        L = GetDirectionalLightAngle(light.direction, light.ShadowRadiusOrAngle, xi);
         falloff = 1.0;
 
         shadowRay.tMax = RAY_MAX;
@@ -644,7 +646,7 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
             float3 toPoint = positionWS - light.position;
             float2 xy = float2(dot(toPoint, right), dot(toPoint, up));
 
-            float2 cookieUV = xy / max(light.cookieSize, 1e-4) + 0.5;
+            float2 cookieUV = xy / max(light.AreaOrCookieSize, 1e-4) + 0.5;
             cookieUV = frac(cookieUV);
 
             cookieColor = SampleCookie(cookieUV, light.cookie).rgb;
@@ -652,10 +654,10 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
     }
     else
     {
-        if (light.type == LightType::Area)
+        if (ty == LightType::Area)
         {
             float2 offset = xi - 0.5;
-            L = light.position + right * offset.x * light.AreaSizeOrDiscRadius.x + light.up * offset.y * light.AreaSizeOrDiscRadius.y;
+            L = light.position + right * offset.x * light.AreaOrCookieSize.x + light.up * offset.y * light.AreaOrCookieSize.y;
 
             if (hasCookie)
             {
@@ -663,9 +665,9 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
                 cookieColor = SampleCookie(cookieUV, light.cookie).rgb;
             }
         }
-        else if (light.type == LightType::Disc)
+        else if (ty == LightType::Disc)
         {
-            float radius = light.AreaSizeOrDiscRadius.x;
+            float radius = light.AreaOrCookieSize.x;
             float2 d = SampleDiskConcentric(xi);
             L = light.position + (right * d.x + up * d.y) * radius;
 
@@ -678,9 +680,9 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
         else
         {
             L = light.position;
-            if (light.ShadowRangeOrAngle > 0.0)
+            if (light.ShadowRadiusOrAngle > 0.0)
             {
-                L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, positionWS, xi);
+                L = RandomPointOnOrientedDisk(light.position, light.ShadowRadiusOrAngle, positionWS, xi);
             }
         }
 
@@ -693,7 +695,7 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
 
         falloff = LightFalloff(distanceSquare, 1.0 / rangeSq, LIGHT_FALLOFF_TYPE);
 
-        if (light.type == LightType::Spot)
+        if (ty == LightType::Spot)
         {
             float spotScale;
             float spotOffset;
@@ -723,22 +725,22 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
             }
         }
 
-        if (light.type == LightType::Point && hasCookie)
+        if (ty == LightType::Point && hasCookie)
         {
             float3 d = positionWS - light.position;
             float3 dirLocal = float3(dot(d, right), dot(d, up), dot(d, fwd));
             cookieColor = SampleCookieOctahedral(dirLocal, light.cookie).rgb;
         }
 
-        if (light.type == LightType::Area)
+        if (ty == LightType::Area)
         {
-            float area = light.AreaSizeOrDiscRadius.x * light.AreaSizeOrDiscRadius.y;
+            float area = light.AreaOrCookieSize.x * light.AreaOrCookieSize.y;
             float cosLight = saturate(dot(-L, light.direction));
             falloff = (cosLight * area) / (float ::getPi() * distanceSquare);
         }
-        else if (light.type == LightType::Disc)
+        else if (ty == LightType::Disc)
         {
-            float radius = light.AreaSizeOrDiscRadius.x;
+            float radius = light.AreaOrCookieSize.x;
             float area = float ::getPi() * radius * radius;
             float cosLight = saturate(dot(-L, light.direction));
             falloff = (cosLight * area) / (float ::getPi() * distanceSquare);
@@ -760,7 +762,7 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
     }
 
     [branch]
-    if (visible > 0.0 && light.castShadows > 0)
+    if (visible > 0.0 && light.CastShadows())
     {
         if (TraceShadowRay(shadowRay))
         {

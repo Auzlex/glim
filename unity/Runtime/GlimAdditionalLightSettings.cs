@@ -14,7 +14,7 @@ namespace Glim
         public Texture2D areaCookie;
 
 #if UNITY_EDITOR
-
+        // todo draw shadow radius too
         void OnDrawGizmosSelected()
         {
             var light = GetComponent<Light>();

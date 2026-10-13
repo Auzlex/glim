@@ -284,7 +284,7 @@ fn initialize_render(app: &mut Glim) {
         app.cpu_lights.sort_unstable_by_key(|x| {
             if x.ty == LightType::Area || x.ty == LightType::Disc {
                 1u8
-            } else if x.mixed == 1 {
+            } else if x.mixed == true {
                 2u8
             } else {
                 0u8
@@ -2057,7 +2057,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     let mut light_count = app.cpu_lights.len() as u32;
     for i in 0..app.cpu_lights.len() {
         let l = &app.cpu_lights[i];
-        if (l.ty == LightType::Area || l.ty == LightType::Disc) || l.mixed == 1 {
+        if (l.ty == LightType::Area || l.ty == LightType::Disc) || l.mixed == true {
             light_count = i as u32;
             break;
         }
@@ -2084,7 +2084,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             area_count += 1;
         }
 
-        if l.mixed == 1 {
+        if l.mixed == true {
             break;
         }
     }
@@ -2101,7 +2101,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     let mut mixed_count = 0u32;
     for i in 0..lights_count {
         let l = &app.cpu_lights[i];
-        if l.mixed == 1 {
+        if l.mixed == true {
             mixed_count += 1;
         }
     }

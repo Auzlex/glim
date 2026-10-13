@@ -228,15 +228,16 @@ namespace Glim
                     range = light.range,
                     color = color,
                     shadow_radius_or_angle = radiusOrAngle,
-                    mixed = light.lightmapBakeType == LightmapBakeType.Mixed ? 1u : 0u,
+                    mixed = light.lightmapBakeType == LightmapBakeType.Mixed ? (byte)1 : (byte)0,
                     cookie = uint.MaxValue,
-                    cast_shadows = light.shadows == LightShadows.None ? 0u : 1u
+                    cast_shadows = light.shadows == LightShadows.None ? (byte)0 : (byte)1,
+                    occlusion_channel = -1,
                 };
 
 #if UNITY_2023_1_OR_NEWER
-                l.cookieSize = light.cookieSize2D;
+                l.area_or_cookie_size = light.cookieSize2D;
 #else
-                l.cookieSize = new Vector2(light.cookieSize, light.cookieSize);
+                l.area_or_cookie_size = new Vector2(light.cookieSize, light.cookieSize);
 #endif
 
                 if (light.type == LightType.Spot)
@@ -249,12 +250,12 @@ namespace Glim
                 if (light.type == LightType.Rectangle)
                 {
                     l.direction = -light.transform.forward;
-                    l.area_size = light.areaSize;
+                    l.area_or_cookie_size = light.areaSize;
                 }
                 if (light.type == LightType.Disc)
                 {
                     l.direction = -light.transform.forward;
-                    l.area_size = new Vector2(light.areaSize.x, light.areaSize.x);
+                    l.area_or_cookie_size = new Vector2(light.areaSize.x, light.areaSize.x);
                 }
 
                 bool lightSupportsCookie = light.type == LightType.Spot ||
