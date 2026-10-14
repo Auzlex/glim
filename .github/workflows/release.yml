@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   workflow_dispatch:
@@ -97,9 +97,15 @@ jobs:
         run: |
           NAME=$(jq -r '.name' unity/package.json)
           VERSION=$(jq -r '.version' unity/package.json)
+          DISPLAY=$(jq -r '.displayName' unity/package.json)
+          DESCRIPTION=$(jq -r '.description' unity/package.json)
+          UNITY=$(jq -r '.unity' unity/package.json)
 
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME"              >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"        >> "$GITHUB_OUTPUT"
+          echo "display=$DISPLAY"        >> "$GITHUB_OUTPUT"
+          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
+          echo "unity=$UNITY"            >> "$GITHUB_OUTPUT"
 
       - name: Copy libraries
         run: |
@@ -115,6 +121,10 @@ jobs:
 
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
+          # Compute SHA-256 for VPM integrity checking
+          SHA256=$(sha256sum "../$ZIP_NAME" | awk '{print $1}')
+          echo "ZIP_SHA256=$SHA256" >> "$GITHUB_ENV"
+
       - name: Create Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -124,3 +134,28 @@ jobs:
             "v${{ steps.package.outputs.version }}" \
             "${{ env.ZIP_NAME }}" \
             --title "v${{ steps.package.outputs.version }}"
+
+      # -----------------------------------------------------------------------
+      # Notify the VPM listing repo (Auzlex/vpm) so its index.json is updated.
+      # Requires a repo secret called VPM_PAT — a fine-grained PAT scoped to
+      # Auzlex/vpm with Contents: Read and Write permission.
+      # -----------------------------------------------------------------------
+      - name: Dispatch VPM listing update
+        env:
+          GH_TOKEN: ${{ secrets.VPM_PAT }}
+        run: |
+          REPO="${{ github.repository_owner }}/vpm"
+          ZIP_URL="https://github.com/${{ github.repository }}/releases/download/v${{ steps.package.outputs.version }}/${{ env.ZIP_NAME }}"
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${REPO}/dispatches \
+            -f event_type=vpm-release \
+            -f "client_payload[package_name]=${{ steps.package.outputs.name }}" \
+            -f "client_payload[version]=${{ steps.package.outputs.version }}" \
+            -f "client_payload[display_name]=${{ steps.package.outputs.display }}" \
+            -f "client_payload[description]=${{ steps.package.outputs.description }}" \
+            -f "client_payload[unity]=${{ steps.package.outputs.unity }}" \
+            -f "client_payload[zip_url]=$ZIP_URL" \
+            -f "client_payload[zip_sha256]=${{ env.ZIP_SHA256 }}"
