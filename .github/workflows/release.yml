@@ -129,7 +129,7 @@ jobs:
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
           # Compute SHA-256 for VPM integrity checking
-          SHA256=$(sha256sum "../$ZIP_NAME" | awk '{print $1}')
+          SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
           echo "ZIP_SHA256=$SHA256" >> "$GITHUB_ENV"
 
       - name: Create Release
