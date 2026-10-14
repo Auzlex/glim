@@ -1,4 +1,10 @@
 
+# v0.9.0
+
+- Implemented shadow mask baking
+- Reverted the change for URP light falloff since it was incorrect
+- GlimAdditionalLightSettings now draws a shadow radius gizmo too
+
 # v0.8.0
 
 - Implemented Mesh Renderer component Cast Shadows option
