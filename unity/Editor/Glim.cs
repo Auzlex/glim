@@ -406,6 +406,42 @@ namespace Glim
 
             Array.Sort(allSelectors, (a, b) => GetDepth(b.transform).CompareTo(GetDepth(a.transform)));
 
+            // --- Build the set of lower-LOD renderers that must be excluded from baking ---
+            // Only active, enabled LODGroups participate in LOD selection at runtime, so we
+            // only filter their lower LOD levels.  Lower-LOD meshes must be excluded from
+            // BOTH the shadow/GI BVH (ExtractMeshData) AND the lightmap UV atlas so that
+            // they do not produce doubled shadows, incorrect indirect bounces, or light leaking.
+            var lowerLodRenderers = new HashSet<MeshRenderer>();
+
+            var allLodGroups = rootObjects
+                .SelectMany(x => x.GetComponentsInChildren<LODGroup>(false))
+                .Where(lg => lg.enabled && lg.gameObject.activeInHierarchy);
+
+            foreach (var lodGroup in allLodGroups)
+            {
+                var lods = lodGroup.GetLODs();
+
+                // LOD index 0 is the highest quality level and is what we bake.
+                // Everything from LOD1 onwards must be excluded.
+                for (int i = 1; i < lods.Length; i++)
+                {
+                    var renderers = lods[i].renderers;
+                    if (renderers == null) continue;
+
+                    foreach (var renderer in renderers)
+                    {
+                        if (renderer is MeshRenderer mr && mr != null)
+                        {
+                            lowerLodRenderers.Add(mr);
+                        }
+                    }
+                }
+            }
+
+            // Also exclude LOD0 renderers that belong to an LODGroup whose LOD0 renderer
+            // list is empty — this can happen with billboard-only groups, and the group
+            // itself has already been excluded from static baking upstream.
+
             var groupMap = new Dictionary<GlimLightmapGroup, List<MeshRenderer>>();
             var claimed = new HashSet<MeshRenderer>();
 
@@ -414,7 +450,7 @@ namespace Glim
                 if (selector.group == null) continue;
 
                 var renderers = selector.GetComponentsInChildren<MeshRenderer>(false)
-                    .Where(x => Glim.IsLightmapStatic(x));
+                    .Where(x => Glim.IsLightmapStatic(x) && !lowerLodRenderers.Contains(x));
 
                 foreach (var r in renderers)
                 {
@@ -430,28 +466,10 @@ namespace Glim
                 }
             }
 
-            var allRenderers = rootObjects.SelectMany(x => x.GetComponentsInChildren<MeshRenderer>(false)).ToList();
-            var allLodGroups = rootObjects.SelectMany(x => x.GetComponentsInChildren<LODGroup>(false));
-
-            // keep only highest level LODs for bake
-            foreach (var group in allLodGroups)
-            {
-                var lods = group.GetLODs();
-
-                for (int i = 1; i < lods.Length; i++)
-                {
-                    LOD lod = lods[i];
-
-                    foreach (var renderer in lods[i].renderers)
-                    {
-                        if (renderer is MeshRenderer mr)
-                        {
-                            allRenderers.Remove(mr);
-                        }
-                    }
-                }
-
-            }
+            var allRenderers = rootObjects
+                .SelectMany(x => x.GetComponentsInChildren<MeshRenderer>(false))
+                .Where(mr => !lowerLodRenderers.Contains(mr))
+                .ToList();
 
             var unclaimedRenderers = new List<MeshRenderer>();
             foreach (var r in allRenderers)
