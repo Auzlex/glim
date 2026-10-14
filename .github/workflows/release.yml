@@ -1,4 +1,4 @@
-﻿name: Release
+name: Release
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload DLL
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: windows
           path: target/release/glim.dll
@@ -63,7 +63,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload SO
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: linux
           path: target/release/libglim.so
@@ -81,13 +81,13 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: windows
           path: build/windows
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: linux
           path: build/linux
@@ -109,8 +109,12 @@ jobs:
 
       - name: Copy libraries
         run: |
+          echo "--- Downloaded artifacts ---"
+          ls -lR build/
           cp build/windows/glim.dll unity/Editor/glim.dll
           cp build/linux/libglim.so unity/Editor/glim.so
+          echo "--- Verifying DLLs in unity/Editor ---"
+          ls -lh unity/Editor/glim.dll unity/Editor/glim.so
 
       - name: Create zip
         run: |
@@ -118,6 +122,9 @@ jobs:
 
           cd unity
           zip -r "../$ZIP_NAME" .
+          echo "--- Zip contents (Editor/) ---"
+          cd ..
+          unzip -l "$ZIP_NAME" | grep -i 'Editor/glim'
 
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
