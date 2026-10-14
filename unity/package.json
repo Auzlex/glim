@@ -1,16 +1,16 @@
 {
-  "name": "io.github.z3y.glim",
+  "name": "io.github.auzlex.glim",
   "description": "Lightmap Baker",
   "version": "0.11.0",
   "unity": "2022.3",
-  "displayName": "Glim Lightmapper",
+  "displayName": "Glim Lightmapper (Auzlex)",
   "hideInEditor": false,
   "gitDependencies": {},
   "vpmDependencies": {},
   "legacyFolders": {},
   "legacyFiles": {},
   "author": {
-    "name": "z3y",
-    "url": "https://github.com/z3y"
+    "name": "Auzlex",
+    "url": "https://github.com/Auzlex"
   }
 }
