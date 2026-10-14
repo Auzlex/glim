@@ -49,7 +49,7 @@ namespace Glim
 
             if ((light.type == LightType.Spot || light.type == LightType.Point) && light.shadowRadius > 0.0f)
             {
-                Gizmos.color = Color.darkSlateGray;
+                Gizmos.color = Color.gray;
                 Gizmos.DrawWireSphere(transform.position, light.shadowRadius);
             }
 
