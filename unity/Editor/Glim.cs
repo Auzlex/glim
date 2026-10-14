@@ -783,7 +783,8 @@ namespace Glim
         {
             if (!cubeToOctahedralMat)
             {
-                cubeToOctahedralMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/io.github.z3y.glim/Editor/CubemapToOctahedral.mat");
+                cubeToOctahedralMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/io.github.auzlex.glim/Editor/CubemapToOctahedral.mat");
+
             }
 
             size = Mathf.Clamp(cube.width * 2, 64, 2048);

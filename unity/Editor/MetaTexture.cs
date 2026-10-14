@@ -35,7 +35,8 @@ namespace Glim
                 dimension = TextureDimension.Tex2D
             };
 
-            _metaAlphaMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/io.github.z3y.glim/Editor/AlphaMeta.mat");
+            _metaAlphaMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/io.github.auzlex.glim/Editor/AlphaMeta.mat");
+
             _rt = new RenderTexture(desc);
             _rt.filterMode = FilterMode.Point;
         }
