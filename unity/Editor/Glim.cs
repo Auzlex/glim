@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -415,12 +416,14 @@ namespace Glim
 
             Array.Sort(allSelectors, (a, b) => GetDepth(b.transform).CompareTo(GetDepth(a.transform)));
 
-            // --- Build the set of lower-LOD renderers that must be excluded from baking ---
-            // Only active, enabled LODGroups participate in LOD selection at runtime, so we
-            // only filter their lower LOD levels.  Lower-LOD meshes must be excluded from
-            // BOTH the shadow/GI BVH (ExtractMeshData) AND the lightmap UV atlas so that
-            // they do not produce doubled shadows, incorrect indirect bounces, or light leaking.
+            // --- Build the set of lower-LOD renderers and map them to their LOD0 counterparts ---
+            // Lower-LOD meshes must be excluded from BOTH the shadow/GI BVH (ExtractMeshData)
+            // AND the lightmap UV atlas to prevent doubled shadows, self-occlusion, and light leaking.
+            // However, their MeshRenderers must still receive lighting data so they do not render
+            // black at runtime when the LODGroup switches detail levels. They share the lightmap
+            // region (index and scaleOffset) of the corresponding LOD0 renderer.
             var lowerLodRenderers = new HashSet<MeshRenderer>();
+            var lod0ToLowerLods = new Dictionary<MeshRenderer, List<MeshRenderer>>();
 
             var allLodGroups = rootObjects
                 .SelectMany(x => x.GetComponentsInChildren<LODGroup>(false))
@@ -429,27 +432,63 @@ namespace Glim
             foreach (var lodGroup in allLodGroups)
             {
                 var lods = lodGroup.GetLODs();
+                if (lods == null || lods.Length <= 1) continue;
 
-                // LOD index 0 is the highest quality level and is what we bake.
-                // Everything from LOD1 onwards must be excluded.
+                var lod0Renderers = lods[0].renderers
+                    ?.OfType<MeshRenderer>()
+                    .Where(mr => mr != null && Glim.IsLightmapStatic(mr))
+                    .ToList();
+
+                if (lod0Renderers == null || lod0Renderers.Count == 0) continue;
+
                 for (int i = 1; i < lods.Length; i++)
                 {
                     var renderers = lods[i].renderers;
                     if (renderers == null) continue;
 
-                    foreach (var renderer in renderers)
+                    for (int rIdx = 0; rIdx < renderers.Length; rIdx++)
                     {
-                        if (renderer is MeshRenderer mr && mr != null)
+                        if (renderers[rIdx] is MeshRenderer mr && mr != null)
                         {
                             lowerLodRenderers.Add(mr);
+
+                            // Only map renderers that participate in static lightmapping with lightmaps
+                            if (mr.receiveGI != ReceiveGI.Lightmaps ||
+                                !GameObjectUtility.GetStaticEditorFlags(mr.gameObject).HasFlag(StaticEditorFlags.ContributeGI) ||
+                                !mr.enabled || !mr.gameObject.activeInHierarchy ||
+                                !mr.GetComponent<MeshFilter>())
+                            {
+                                continue;
+                            }
+
+                            // Match with corresponding LOD0 renderer:
+                            // 1. By normalized name without LOD suffix
+                            // 2. By array index
+                            // 3. Fallback to first LOD0 renderer
+                            string cleanName = CleanLodName(mr.gameObject.name);
+                            MeshRenderer match = lod0Renderers.FirstOrDefault(l0 => CleanLodName(l0.gameObject.name) == cleanName);
+                            if (match == null && rIdx < lod0Renderers.Count)
+                            {
+                                match = lod0Renderers[rIdx];
+                            }
+                            if (match == null)
+                            {
+                                match = lod0Renderers[0];
+                            }
+
+                            if (match != null)
+                            {
+                                if (!lod0ToLowerLods.TryGetValue(match, out var lowerList))
+                                {
+                                    lowerList = new List<MeshRenderer>();
+                                    lod0ToLowerLods[match] = lowerList;
+                                }
+                                lowerList.Add(mr);
+                            }
                         }
                     }
                 }
             }
-
-            // Also exclude LOD0 renderers that belong to an LODGroup whose LOD0 renderer
-            // list is empty — this can happen with billboard-only groups, and the group
-            // itself has already been excluded from static baking upstream.
 
             var groupMap = new Dictionary<GlimLightmapGroup, List<MeshRenderer>>();
             var claimed = new HashSet<MeshRenderer>();
@@ -648,45 +687,42 @@ namespace Glim
 
                 if (saveGroup)
                 {
+                    int totalEntries = rendererArray.Length;
+                    foreach (var mr in rendererArray)
+                    {
+                        if (lod0ToLowerLods.TryGetValue(mr, out var lowerList))
+                        {
+                            totalEntries += lowerList.Count;
+                        }
+                    }
+
                     var rendererDataIds = lda.FindProperty("m_LightmappedRendererDataIDs");
                     var rendererData = lda.FindProperty("m_LightmappedRendererData");
-                    rendererDataIds.arraySize += rendererArray.Length;
-                    rendererData.arraySize += rendererArray.Length;
+                    rendererDataIds.arraySize += totalEntries;
+                    rendererData.arraySize += totalEntries;
+
+                    int curOffset = mrDataOffset;
 
                     for (int i = 0; i < rendererArray.Length; i++)
                     {
                         MeshRenderer mr = rendererArray[i];
                         var scaleOffset = mr.lightmapScaleOffset;
 
-                        var ids = rendererDataIds.GetArrayElementAtIndex(mrDataOffset + i);
-                        var lmData = rendererData.GetArrayElementAtIndex(mrDataOffset + i);
+                        // Primary / LOD0 renderer
+                        WriteRendererToLda(mr, scaleOffset, groupIndex, rendererDataIds, rendererData, curOffset++);
 
-                        var soi = LightingData.ObjectToSOI(mr);
-
-                        ids.Next(true);
-                        ids.longValue = soi.MainLFID;
-                        ids.Next(false);
-                        ids.longValue = soi.PrefabLFID;
-
-                        lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
-                        lmData.FindPropertyRelative("lightmapST").vector4Value = scaleOffset;
-                        lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = new Vector4(1, 1, 0, 0);
-
-                        lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
-                        lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
-
-                        lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
-
-                        var uvMeshProp = lmData.FindPropertyRelative("uvMesh");
-                        if (lightmapGroup.packingType == UVPackingType.SplitCharts && mr.enlightenVertexStream)
+                        // Lower LOD renderers sharing this LOD0's lightmap
+                        if (lod0ToLowerLods.TryGetValue(mr, out var lowerList))
                         {
-                            Mesh uvMesh = mr.enlightenVertexStream;
-                            AssetDatabase.AddObjectToAsset(uvMesh, lda.targetObject);
-                            uvMeshProp.objectReferenceValue = uvMesh;
-                        }
-                        else
-                        {
-                            uvMeshProp.objectReferenceValue = null;
+                            foreach (var lowerMr in lowerList)
+                            {
+                                if (lowerMr == null) continue;
+
+                                lowerMr.lightmapScaleOffset = scaleOffset;
+                                EditorUtility.SetDirty(lowerMr);
+
+                                WriteRendererToLda(lowerMr, scaleOffset, groupIndex, rendererDataIds, rendererData, curOffset++);
+                            }
                         }
                     }
 
@@ -960,6 +996,40 @@ namespace Glim
             cubeToOctahedralMat.SetTexture("_Cube", null);
 
             return pixels;
+        }
+
+        private static string CleanLodName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return string.Empty;
+            return Regex.Replace(name, @"(?i)(_|\b)lod\d+(\b|_)?", "");
+        }
+
+        private static void WriteRendererToLda(
+            Renderer r,
+            Vector4 scaleOffset,
+            uint groupIndex,
+            SerializedProperty rendererDataIds,
+            SerializedProperty rendererData,
+            int index)
+        {
+            var ids = rendererDataIds.GetArrayElementAtIndex(index);
+            var lmData = rendererData.GetArrayElementAtIndex(index);
+
+            var soi = LightingData.ObjectToSOI(r);
+
+            ids.Next(true);
+            ids.longValue = soi.MainLFID;
+            ids.Next(false);
+            ids.longValue = soi.PrefabLFID;
+
+            lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
+            lmData.FindPropertyRelative("lightmapST").vector4Value = scaleOffset;
+            lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = new Vector4(1, 1, 0, 0);
+
+            lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
+            lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
+
+            lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
         }
     }
 
