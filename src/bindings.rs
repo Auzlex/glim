@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    Glim, LightmapGroup, initialize_render,
+    Glim, LOG_CALLBACK, LightmapGroup, initialize_render,
     lights::Light,
     math::Vector3,
     mesh::{FfiMesh, Mesh},
@@ -62,7 +62,7 @@ pub enum LightmapMode {
 }
 
 #[repr(u32)]
-pub enum LogMessageType {
+pub enum LogType {
     Info = 0,
     Error = 1,
     Progress = 2,
@@ -118,40 +118,43 @@ impl FfiString {
 }
 
 #[repr(C)]
-pub struct LogMessage {
-    pub ty: LogMessageType,
+pub struct Log {
+    pub ty: LogType,
     pub progress: f32,
     pub message: FfiString,
 }
 
-impl LogMessage {
-    pub fn message(message: &str) -> Self {
-        Self {
-            ty: LogMessageType::Info,
+impl Log {
+    pub fn msg(message: &str) {
+        let msg = Self {
+            ty: LogType::Info,
             progress: -1.0,
             message: FfiString::new(message),
-        }
+        };
+        (unsafe { LOG_CALLBACK })(msg);
     }
 
-    pub fn progress(progress: f32) -> Self {
-        Self {
-            ty: LogMessageType::Progress,
+    pub fn progress(progress: f32) {
+        let msg = Self {
+            ty: LogType::Progress,
             progress,
             message: FfiString::EMPTY,
-        }
+        };
+        (unsafe { LOG_CALLBACK })(msg);
     }
 
-    pub fn error(message: &str) -> Self {
-        Self {
-            ty: LogMessageType::Error,
+    pub fn error(message: &str) {
+        let msg = Self {
+            ty: LogType::Error,
             progress: -1.0,
             message: FfiString::new(message),
-        }
+        };
+        (unsafe { LOG_CALLBACK })(msg);
     }
 }
 
-type LogCallback = extern "C" fn(data: LogMessage);
-type LightprobesReadCallback = extern "C" fn(data: LightprobesReadbackData);
+pub type LogCallback = extern "C" fn(data: Log);
+pub type LightprobesReadCallback = extern "C" fn(data: LightprobesReadbackData);
 
 #[repr(C)]
 pub struct LightprobesReadbackData {
@@ -196,8 +199,8 @@ fn handle_unwind_error(log_callback: LogCallback, err: Box<dyn Any + Send>) {
     };
 
     let message = FfiString::new(error_msg);
-    let data = LogMessage {
-        ty: LogMessageType::Error,
+    let data = Log {
+        ty: LogType::Error,
         progress: -1.0,
         message,
     };

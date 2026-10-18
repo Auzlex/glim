@@ -9,7 +9,7 @@ use std::{
     ptr,
 };
 
-use crate::vulkan_swapchain::SwapchainData;
+use crate::{bindings::Log, vulkan_swapchain::SwapchainData};
 
 pub struct VulkanConfig {
     pub enable_validation_layers: bool,
@@ -191,7 +191,7 @@ impl VulkanContext {
             let properties = unsafe { instance.get_physical_device_properties(*physical_device) };
 
             let name = properties.device_name_as_c_str();
-            println!("Device {:?}", name);
+            Log::msg(&format!("Selected Vulkan Device: {:?}", name));
             // println!("Properties {:#?}", properties);
         }
         let physical_device = physical_devices[0];
@@ -239,9 +239,9 @@ impl VulkanContext {
         }
 
         if !has_ray_query {
-            println!("VK_KHR_ray_query not supported");
+            Log::msg("VK_KHR_ray_query not supported");
         } else {
-            println!("VK_KHR_ray_query supported");
+            Log::msg("VK_KHR_ray_query supported");
         }
 
         if has_ray_query {
@@ -579,7 +579,9 @@ pub extern "system" fn vulkan_debug_callback(
     unsafe {
         let callback_data = *p_callback_data;
         let message = CStr::from_ptr(callback_data.p_message).to_string_lossy();
-        println!("{message_severity:?}: {message_type:?} | {message}");
+
+        let msg = format!("{message_severity:?}: {message_type:?} | {message}");
+        Log::msg(&msg);
     }
 
     vk::FALSE

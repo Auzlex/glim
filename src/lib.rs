@@ -59,6 +59,21 @@ mod vulkan_context;
 mod vulkan_swapchain;
 mod window;
 
+#[unsafe(no_mangle)]
+pub extern "C" fn default_logger(data: Log) {
+    match data.ty {
+        LogType::Info => println!("Message: {}", data.message.from()),
+        LogType::Error => panic!("Error: {}", data.message.from()),
+        LogType::Progress => {
+            use std::io::{self, Write};
+            print!("\rProgress: {:.1}%\x1B[K", data.progress * 100.0);
+            let _ = io::stdout().flush();
+        }
+    }
+}
+
+pub static mut LOG_CALLBACK: LogCallback = default_logger;
+
 pub struct Glim {
     pub config: GlimConfig,
     pub vk: VulkanContext,
@@ -267,7 +282,7 @@ fn initialize_render(app: &mut Glim) {
             mesh.vertices.len(),
             mesh.indices.len() / 3,
         );
-        (app.config.log_callback)(LogMessage::message(&message));
+        Log::msg(&message);
     }
 
     extract_emissive_triangles(app);
@@ -1088,7 +1103,7 @@ fn extract_emissive_triangles(app: &mut Glim) {
             "Found {} emissive triangles for MIS",
             emissive_triangles.len()
         );
-        (app.config.log_callback)(LogMessage::message(&message));
+        Log::msg(&message);
     }
 
     if emissive_triangles.len() > 0 {
@@ -1128,6 +1143,8 @@ impl LightmapGroup {
 
 impl Glim {
     pub fn new(config: GlimConfig, output_dir: PathBuf) -> Glim {
+        unsafe { LOG_CALLBACK = config.log_callback };
+
         let mut vulkan_config = VulkanConfig {
             enable_validation_layers: config.vulkan_validation_layers,
             enable_window: config.is_preview,
@@ -1699,10 +1716,9 @@ unsafe fn render_lightmaps(app: &mut Glim) {
         app.vk.end_single_use_cmd(cmd);
     }
 
-    let log = app.config.log_callback;
     let reduction = 1.0 - (compacted_pixels_count as f32 / total_pixel_count as f32);
     let message = format!("Compaction: {}%", reduction * 100.0);
-    (log)(LogMessage::message(&message));
+    Log::msg(&message);
 
     let mut compacted_visibility = Buffer::empty(
         &app.vk,
@@ -2007,7 +2023,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             "Baking Direct Lights"
         };
 
-        (log)(LogMessage::message(&message));
+        Log::msg(&message);
 
         let mut bake_direct_push = DirectLightPushConstants {
             compacted_count: compacted_pixels_count,
@@ -2026,7 +2042,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             }
             bake_direct_push.sample_index = sample_index;
             if sample_index % 4 == 0 || sample_index == (bake_direct_push.max_samples - 1) {
-                (log)(LogMessage::progress(*progress * progress_scale));
+                Log::progress(*progress * progress_scale);
             }
             *progress += 1.0;
 
@@ -2139,7 +2155,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
         };
 
         let message = format!("Baking Direct Emission");
-        (log)(LogMessage::message(&message));
+        Log::msg(&message);
 
         for sample_index in 0..bake_direct_push.max_samples {
             if is_cancelled() {
@@ -2147,7 +2163,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             }
             bake_direct_push.sample_index = sample_index;
             if sample_index % 4 == 0 || sample_index == (bake_direct_push.max_samples - 1) {
-                (log)(LogMessage::progress(progress * progress_scale));
+                Log::progress(progress * progress_scale);
             }
             progress += 1.0;
 
@@ -2271,7 +2287,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             push.bounce_index = bounce_index;
 
             let message = format!("Baking Bounce {}", bounce_index + 1);
-            (log)(LogMessage::message(&message));
+            Log::msg(&message);
 
             let last_sample = app.config.indirect_samples - 1;
             for sample_index in 0..app.config.indirect_samples {
@@ -2280,7 +2296,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                 }
                 push.sample_index = sample_index;
                 if sample_index % 4 == 0 || sample_index == last_sample {
-                    (log)(LogMessage::progress(progress * progress_scale));
+                    Log::progress(progress * progress_scale);
                 }
                 progress += 1.0;
 
@@ -2321,7 +2337,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     drop(bake_direct_light_shader);
 
     let message = format!("Decompacting");
-    (log)(LogMessage::message(&message));
+    Log::msg(&message);
 
     #[repr(C)]
     pub struct PushConstants {
@@ -2363,8 +2379,8 @@ unsafe fn render_lightmaps(app: &mut Glim) {
         match err {
             Some(err) => {
                 let message = "Failed to load Open Image Denoise";
-                (log)(LogMessage::message(&message));
-                (log)(LogMessage::message(&err.to_string()))
+                Log::msg(&message);
+                Log::msg(&err.to_string());
             }
             None => {}
         };
@@ -2383,10 +2399,10 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     let output_dir = &app.output_dir;
 
     if let Some(oidn) = oidn.as_mut() {
-        (log)(LogMessage::message(&format!(
+        Log::msg(&format!(
             "Open Image Denoise 2.0 loaded with device {:?}",
             oidn.device_type()
-        )));
+        ));
 
         let mut max_width = 1usize;
         let mut max_height = 1usize;
@@ -2399,10 +2415,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
         let size = max_width * max_height * 4 * size_of::<f32>();
 
         if !oidn.reserve_buffer(size) {
-            (log)(LogMessage::message(&format!(
-                "OIDN: failed to reserve {} bytes",
-                size
-            )));
+            Log::msg(&format!("OIDN: failed to reserve {} bytes", size));
         }
     }
 
@@ -2413,12 +2426,12 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             return;
         }
 
-        (log)(LogMessage::message(&format!(
+        Log::msg(&format!(
             "Processing Lightmap ({}/{})",
             post_step, post_total
-        )));
+        ));
 
-        (log)(LogMessage::progress(post_step as f32 / post_total as f32));
+        Log::progress(post_step as f32 / post_total as f32);
 
         let mut push = PushConstants {
             width: group.width,
@@ -2476,10 +2489,10 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                     Some(oidn) => {
                         let start_time = std::time::Instant::now();
 
-                        (log)(LogMessage::message(&format!(
+                        Log::msg(&format!(
                             "Denoising Lightmap ({}/{})",
                             post_step, post_total
-                        )));
+                        ));
 
                         oidn.denoise(
                             pixels,
@@ -2492,11 +2505,11 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                         let elapsed = now.duration_since(start_time).as_secs_f32();
 
                         let message = format!("Denoise Complete {}s", elapsed);
-                        (log)(LogMessage::message(&message));
+                        Log::msg(&message);
                     }
                     None => {
                         let message = format!("<color=red>Denoise Failed</color>");
-                        (log)(LogMessage::message(&message));
+                        Log::msg(&message);
                     }
                 }
             }
@@ -2551,7 +2564,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
                 let elapsed = now.duration_since(start_time).as_secs_f32();
 
                 let message = format!("Fixed {} seams in {}s", app.seams.len(), elapsed);
-                (log)(LogMessage::message(&message));
+                Log::msg(&message);
             }
 
             if group.dilate {
@@ -2564,10 +2577,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             let w = group.width as usize;
             let h = group.height as usize;
 
-            (log)(LogMessage::message(&format!(
-                "Encoding Lightmap ({}/{})",
-                post_step, post_total
-            )));
+            Log::msg(&format!("Encoding Lightmap ({}/{})", post_step, post_total));
 
             if lightmap_type == 0 {
                 use exr::prelude::*;
@@ -2661,7 +2671,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
 
     // light probes
     if app.probes.len() > 0 && !is_cancelled() {
-        (log)(LogMessage::message(&format!("Baking Light Probes")));
+        Log::msg(&format!("Baking Light Probes"));
 
         let mut probes_buffer = Buffer::new(
             &app.vk,
@@ -2718,7 +2728,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
             let constants_bytes = as_bytes(&push);
 
             if sample_index % 4 == 0 || sample_index == last_sample {
-                (log)(LogMessage::progress(progress * progress_scale));
+                Log::progress(progress * progress_scale);
             }
             progress += 1.0;
 
@@ -2789,12 +2799,12 @@ unsafe fn render_lightmaps(app: &mut Glim) {
     drop(lightmaps_info);
 
     if is_cancelled() {
-        (log)(LogMessage::message("Bake cancelled by user"));
+        Log::msg("Bake cancelled by user");
     }
 
     let now = std::time::Instant::now();
     let elapsed = now.duration_since(bake_start_time).as_secs_f32();
-    println!("Bake Complete in {}s", elapsed);
+    Log::msg(&format!("Bake Complete in {}s", elapsed));
 }
 
 fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize) {
@@ -2810,8 +2820,6 @@ fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize)
         return;
     }
 
-    let log = app.config.log_callback;
-
     let group = &app.groups[lightmap_index].settings;
     if group.discard {
         return;
@@ -2819,11 +2827,11 @@ fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize)
 
     let resolution = group.width;
 
-    (log)(LogMessage::message(&format!(
+    Log::msg(&format!(
         "Baking Shadowmask ({}/{})",
         lightmap_index + 1,
         app.groups.len()
-    )));
+    ));
 
     #[repr(C)]
     pub struct PushConstants {
@@ -2906,9 +2914,6 @@ fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize)
         .join(format!("Lightmap-{}_ShadowMask.tga", lightmap_index));
 
     if let Err(err) = save_tga(path, resolution as usize, resolution as usize, pixels, true) {
-        (log)(LogMessage::message(&format!(
-            "Failed to save shadowmask: {}",
-            err
-        )));
+        Log::msg(&format!("Failed to save shadowmask: {}", err));
     }
 }

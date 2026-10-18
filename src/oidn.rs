@@ -4,6 +4,8 @@ use std::{
     ptr,
 };
 
+use crate::bindings::Log;
+
 #[repr(C)]
 pub struct OIDNDeviceImpl(c_void);
 #[repr(C)]
@@ -136,7 +138,7 @@ impl Oidn {
         unsafe {
             let lib = Library::new(&lib_path)?;
 
-            println!("Loading oidn from {:?}", &lib_path);
+            Log::msg(&format!("Loading OIDN from {:?}", &lib_path));
 
             let new_device: FnNewDevice = *lib.get(b"oidnNewDevice\0")?;
             let commit_device: FnCommitDevice = *lib.get(b"oidnCommitDevice\0")?;
@@ -266,7 +268,9 @@ impl Oidn {
                 } else {
                     CStr::from_ptr(msg).to_string_lossy()
                 };
-                eprintln!("OIDN error {:?}: {}", err, s);
+
+                let msg = format!("OIDN error {:?}: {}", err, s);
+                Log::msg(&msg);
             }
         }
     }

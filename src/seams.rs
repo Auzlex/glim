@@ -5,6 +5,7 @@
 // The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 // THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use crate::bindings::Log;
 use crate::math::*;
 use crate::mesh::Mesh;
 use rayon::prelude::*;
@@ -87,6 +88,8 @@ fn vec2_eq_approx(a: Vector2, b: Vector2) -> bool {
 // todo seam fixer should probably decode oct normals when testing equality
 
 pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
+    let start_time = std::time::Instant::now();
+
     let verts = &mesh.vertices;
 
     let is_seam = |e0: &Edge, e1: &Edge| -> u8 {
@@ -288,9 +291,16 @@ pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
         .flatten()
         .collect();
 
-    println!("found {} seams out of {} edges", seams.len(), edges.len());
+    let now = std::time::Instant::now();
 
-    // println!("Seams: {:#?} ", seams);
+    let elapsed = now.duration_since(start_time).as_secs_f32();
+
+    Log::msg(&format!(
+        "Found {} Seams out of {} Edges in {}s",
+        seams.len(),
+        edges.len(),
+        elapsed
+    ));
 
     seams
 }
@@ -521,11 +531,12 @@ pub fn fix_seams(
         }
     }
 
-    println!(
-        "created sample points {} for {} seams",
+    let msg = format!(
+        "Created {} sample points for {} seams",
         sample_points.len(),
         seams.len()
     );
+    Log::msg(&msg);
 
     if debug {
         return;

@@ -188,8 +188,6 @@ namespace Glim
             {
                 var now = Time.realtimeSinceStartupAsDouble;
 
-                bakeMessages.AppendLine($"Bake Complete in {now - _bakeStartTime}");
-
                 List<LightmapData> lightmapDatas = new();
                 for (int groupIndex = 0; groupIndex < _context.groups.Count; groupIndex++)
                 {

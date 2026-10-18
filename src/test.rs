@@ -64,7 +64,7 @@ mod tests {
             preview_settings,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
-            log_callback: log_callback,
+            log_callback: default_logger,
             lightprobes_read_callback: test_probes_callback,
             probe_samples: LIGHT_PROBE_SAMPLES,
             light_falloff: LightFalloffType::InverseSquare,
@@ -349,19 +349,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn log_callback(data: LogMessage) {
-        match data.ty {
-            LogMessageType::Info => println!("Message: {}", data.message.from()),
-            LogMessageType::Error => panic!("Error: {}", data.message.from()),
-            LogMessageType::Progress => {
-                use std::io::{self, Write};
-                print!("\rProgress: {:.1}%\x1B[K", data.progress * 100.0);
-                let _ = io::stdout().flush();
-            }
-        }
     }
 
     #[unsafe(no_mangle)]
