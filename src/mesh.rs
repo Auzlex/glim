@@ -2,7 +2,12 @@ use ash::vk::{self, Handle};
 use tinybvh::{Cwbvh, CwbvhData};
 
 use crate::{
-    CoordinateSystem, LightmapGroup, buffer::Buffer, math::*, vulkan_context::VulkanContext,
+    CoordinateSystem, LightmapGroup,
+    bindings::GlimConfig,
+    buffer::Buffer,
+    math::*,
+    seams::{Seam, find_seams},
+    vulkan_context::VulkanContext,
 };
 use core::slice;
 
@@ -39,6 +44,10 @@ pub struct Vertex {
 impl Vertex {
     pub fn group(&self) -> u32 {
         self.flags & 0xFFFF
+    }
+
+    pub fn fix_seams(&self) -> bool {
+        self.flags & (1 << 18) != 0
     }
 }
 
@@ -207,7 +216,6 @@ pub struct GpuMesh {
     pub acceleration_structure: AccelerationStructureType,
 
     pub index_len: u32,
-    pub mesh: Mesh,
 }
 
 impl GpuMesh {
@@ -216,6 +224,8 @@ impl GpuMesh {
         meshes: &[Mesh; GEOMETRIES_VARIANTS],
         lightmap_groups: &[LightmapGroup],
         use_ray_query: bool,
+        seams: &mut Vec<Seam>,
+        config: &GlimConfig,
     ) -> Self {
         let mut usage = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
@@ -228,6 +238,11 @@ impl GpuMesh {
         let mut merged_mesh = meshes[0].clone();
         for mesh in &meshes[1..] {
             merged_mesh.merge_mesh(mesh);
+        }
+
+        if !config.is_preview {
+            let flip = config.coordinate_system == CoordinateSystem::Unity;
+            *seams = find_seams(&merged_mesh, flip);
         }
 
         let mut group_resolutions = vec![Vector2::ZERO; lightmap_groups.len()];
@@ -325,7 +340,6 @@ impl GpuMesh {
             index_buffer,
             acceleration_structure: bvh,
             index_len: merged_mesh.indices.len() as u32,
-            mesh: merged_mesh,
         }
     }
 
@@ -566,12 +580,6 @@ impl GpuMesh {
             ]),
             vertex_buffer: Buffer::null(),
             index_buffer: Buffer::null(),
-            mesh: Mesh {
-                vertices: Vec::new(),
-                indices: Vec::new(),
-                transparent: false,
-                no_shadows: false,
-            },
             index_len: 0,
         }
     }

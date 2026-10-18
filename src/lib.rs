@@ -16,7 +16,7 @@ use crate::camera::InitializePreviewPushConstants;
 use crate::lights::LightType;
 use crate::math::{Vector2, Vector3};
 use crate::mesh::{GEOMETRIES_VARIANTS, Vertex};
-use crate::seams::{Seam, dilate, find_seams, fix_seams};
+use crate::seams::{Seam, dilate, fix_seams};
 use crate::sh::SHProbeL2;
 
 use crate::shader::{
@@ -310,20 +310,14 @@ fn initialize_render(app: &mut Glim) {
 
     let use_ray_query = app.config.hardware_rt && app.vk.as_device.is_some();
 
-    app.gpu_mesh = GpuMesh::new(&app.vk, &app.meshes, &app.groups, use_ray_query);
-
-    if !app.config.is_preview {
-        let flip = app.config.coordinate_system == CoordinateSystem::Default;
-        app.seams = find_seams(&app.gpu_mesh.mesh, flip);
-    }
-
-    // no longer needed, free
-    app.gpu_mesh.mesh = Mesh {
-        vertices: Vec::new(),
-        indices: Vec::new(),
-        transparent: false,
-        no_shadows: false,
-    };
+    app.gpu_mesh = GpuMesh::new(
+        &app.vk,
+        &app.meshes,
+        &app.groups,
+        use_ray_query,
+        &mut app.seams,
+        &app.config,
+    );
 
     match &app.gpu_mesh.acceleration_structure {
         mesh::AccelerationStructureType::RayQuery(vulkan_as) => {

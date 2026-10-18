@@ -100,7 +100,7 @@ pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
         let nb0 = ve1a.normal;
         let uvb0 = ve1a.uv;
 
-        if ve0a.group() != ve1a.group() {
+        if ve0a.group() != ve1a.group() || !ve1a.fix_seams() {
             return 0;
         }
 
@@ -162,9 +162,11 @@ pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
         let i1 = indices[i + 1];
         let i2 = indices[i + 2];
 
-        edges.insert(Edge::new(i0, i1));
-        edges.insert(Edge::new(i1, i2));
-        edges.insert(Edge::new(i2, i0));
+        if verts[i0 as usize].fix_seams() {
+            edges.insert(Edge::new(i0, i1));
+            edges.insert(Edge::new(i1, i2));
+            edges.insert(Edge::new(i2, i0));
+        }
 
         i += 3;
     }
