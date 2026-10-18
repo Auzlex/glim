@@ -194,7 +194,7 @@ impl VulkanContext {
             let properties = unsafe { instance.get_physical_device_properties(*physical_device) };
 
             let name = properties.device_name_as_c_str();
-            Log::msg(&format!("Selected Vulkan Device: {:?}", name));
+            Log::msg(&format!("Found Vulkan Device: {:?}", name));
             // println!("Properties {:#?}", properties);
         }
         let physical_device = physical_devices[0];
