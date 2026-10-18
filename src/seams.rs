@@ -6,6 +6,7 @@
 // THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use crate::math::*;
+use crate::mesh::Mesh;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -72,66 +73,75 @@ impl Vector2Int {
 }
 
 #[inline]
-fn approx_eq_vec3(a: Vector3, b: Vector3) -> bool {
+fn vec3_eq_approx(a: Vector3, b: Vector3) -> bool {
     const EPS: f32 = 0.001;
     (a - b).length_squared() < EPS * EPS
 }
 
 #[inline]
-fn approx_eq_vec2(a: Vector2, b: Vector2) -> bool {
+fn vec2_eq_approx(a: Vector2, b: Vector2) -> bool {
     const EPS: f32 = 0.001;
     (a - b).length_squared() < EPS * EPS
 }
 
-pub fn find_seams(
-    indices: &[u32],
-    positions: &[Vector3],
-    normals: &[Vector3],
-    uvs: &[Vector2],
-    flip_uv_y: bool,
-    group: u32,
-) -> Vec<Seam> {
+pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
+    let verts = &mesh.vertices;
+
     let is_seam = |e0: &Edge, e1: &Edge| -> u8 {
-        let pa0 = positions[e0.a as usize];
-        let na0 = normals[e0.a as usize];
-        let uva0 = uvs[e0.a as usize];
+        let ve0a = mesh.vertices[e0.a as usize];
+        let pa0 = ve0a.position;
+        let na0 = ve0a.normal;
+        let uva0 = ve0a.uv;
 
-        let pb0 = positions[e1.a as usize];
-        let nb0 = normals[e1.a as usize];
-        let uvb0 = uvs[e1.a as usize];
+        let ve1a = mesh.vertices[e1.a as usize];
+        let pb0 = ve1a.position;
+        let nb0 = ve1a.normal;
+        let uvb0 = ve1a.uv;
 
-        let positions_equal = approx_eq_vec3(pa0, pb0);
-        let normals_equal = approx_eq_vec3(na0, nb0);
-        let uvs_equal = approx_eq_vec2(uva0, uvb0);
+        if ve0a.group() != ve1a.group() {
+            return 0;
+        }
+
+        let positions_equal = vec3_eq_approx(pa0, pb0);
+        let normals_equal = vec2_eq_approx(na0, nb0);
+        let uvs_equal = vec2_eq_approx(uva0, uvb0);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let pa1 = positions[e0.b as usize];
-            let na1 = normals[e0.b as usize];
-            let uva1 = uvs[e0.b as usize];
-            let pb1 = positions[e1.b as usize];
-            let nb1 = normals[e1.b as usize];
-            let uvb1 = uvs[e1.b as usize];
+            let va1 = mesh.vertices[e0.b as usize];
+            let pa1 = va1.position;
+            let na1 = va1.normal;
+            let uva1 = va1.uv;
 
-            let positions_equal = approx_eq_vec3(pa1, pb1);
-            let normals_equal = approx_eq_vec3(na1, nb1);
-            let uvs_equal = approx_eq_vec2(uva1, uvb1);
+            let ve0b = mesh.vertices[e0.b as usize];
+            let pb1 = ve0b.position;
+            let nb1 = ve0b.normal;
+            let uvb1 = ve0b.uv;
+
+            let positions_equal = vec3_eq_approx(pa1, pb1);
+            let normals_equal = vec2_eq_approx(na1, nb1);
+            let uvs_equal = vec2_eq_approx(uva1, uvb1);
 
             if positions_equal && normals_equal && !uvs_equal {
                 return 1;
             }
         }
 
-        let positions_equal = approx_eq_vec3(pa0, positions[e1.b as usize]);
-        let normals_equal = approx_eq_vec3(na0, normals[e1.b as usize]);
-        let uvs_equal = approx_eq_vec2(uva0, uvs[e1.b as usize]);
+        let ve1b = mesh.vertices[e1.b as usize];
+        let positions_equal = vec3_eq_approx(pa0, ve1b.position);
+        let normals_equal = vec2_eq_approx(na0, ve1b.normal);
+        let uvs_equal = vec2_eq_approx(uva0, ve1b.uv);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let pa1 = positions[e0.b as usize];
-            let na1 = normals[e0.b as usize];
-            let uva1 = uvs[e0.b as usize];
-            let positions_equal = approx_eq_vec3(pa1, positions[e1.a as usize]);
-            let normals_equal = approx_eq_vec3(na1, normals[e1.a as usize]);
-            let uvs_equal = approx_eq_vec2(uva1, uvs[e1.a as usize]);
+            let ve0b = mesh.vertices[e0.b as usize];
+            let pa1 = ve0b.position;
+            let na1 = ve0b.normal;
+            let uva1 = ve0b.uv;
+
+            let ve1a = mesh.vertices[e1.a as usize];
+            let positions_equal = vec3_eq_approx(pa1, ve1a.position);
+            let normals_equal = vec2_eq_approx(na1, ve1a.normal);
+            let uvs_equal = vec2_eq_approx(uva1, ve1a.uv);
+
             if positions_equal && normals_equal && !uvs_equal {
                 return 2;
             }
@@ -141,6 +151,8 @@ pub fn find_seams(
     };
 
     let mut edges = HashSet::new();
+
+    let indices = &mesh.indices;
 
     let mut i = 0;
     while i + 2 < indices.len() {
@@ -182,22 +194,27 @@ pub fn find_seams(
     for (index, edge) in edges.iter().enumerate() {
         // Index both endpoints: a reversed-orientation match (is_seam == 2) pairs e1.b with e0.a.
         for vertex in [edge.a, edge.b] {
-            grid.entry(cell_of(positions[vertex as usize]))
+            let v = verts[vertex as usize];
+            grid.entry(cell_of(v.position))
                 .or_default()
                 .push(index as u32);
         }
     }
 
     let build_seam = |e0: &Edge, e1: &Edge| -> Seam {
-        let mut edge0_uv0 = uvs[e0.a as usize];
-        let mut edge0_uv1 = uvs[e0.b as usize];
-        let edge0_p0 = positions[e0.a as usize];
-        let edge0_p1 = positions[e0.b as usize];
+        let ve0a = verts[e0.a as usize];
+        let ve0b = verts[e0.b as usize];
+        let mut edge0_uv0 = ve0a.uv;
+        let mut edge0_uv1 = ve0b.uv;
+        let edge0_p0 = ve0a.position;
+        let edge0_p1 = ve0b.position;
 
-        let mut edge1_uv0 = uvs[e1.a as usize];
-        let mut edge1_uv1 = uvs[e1.b as usize];
-        let edge1_p0 = positions[e1.a as usize];
-        let edge1_p1 = positions[e1.b as usize];
+        let ve1a = verts[e1.a as usize];
+        let ve1b = verts[e1.b as usize];
+        let mut edge1_uv0 = ve1a.uv;
+        let mut edge1_uv1 = ve1b.uv;
+        let edge1_p0 = ve1a.position;
+        let edge1_p1 = ve1b.position;
 
         if flip_uv_y {
             edge0_uv0.y = 1.0 - edge0_uv0.y;
@@ -213,8 +230,11 @@ pub fn find_seams(
             std::mem::swap(&mut edge0_uv1, &mut edge1_uv1);
         }
 
-        debug_assert!(approx_eq_vec3(edge0_p0, edge1_p0));
-        debug_assert!(approx_eq_vec3(edge0_p1, edge1_p1));
+        debug_assert!(vec3_eq_approx(edge0_p0, edge1_p0));
+        debug_assert!(vec3_eq_approx(edge0_p1, edge1_p1));
+
+        // both seams should be confirmed above to be part of the same group already
+        let group = ve0a.group();
 
         Seam {
             edge0_uv0,
@@ -229,7 +249,8 @@ pub fn find_seams(
         .into_par_iter()
         .map(|i| {
             let e0 = &edges[i];
-            let (cx, cy, cz) = cell_of(positions[e0.a as usize]);
+            let ve0a = verts[e0.a as usize];
+            let (cx, cy, cz) = cell_of(ve0a.position);
 
             let mut candidates = Vec::new();
             for dx in -1..=1 {

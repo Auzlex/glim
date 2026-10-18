@@ -16,14 +16,17 @@ impl Vector2 {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
     pub const ONE: Self = Self { x: 1.0, y: 1.0 };
 
+    #[inline]
     pub fn dot(self, rhs: Self) -> f32 {
         self.x * rhs.x + self.y * rhs.y
     }
 
+    #[inline]
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
+    #[inline]
     pub fn length(self) -> f32 {
         self.length_squared().sqrt()
     }

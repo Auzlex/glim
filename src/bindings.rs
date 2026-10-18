@@ -265,7 +265,6 @@ pub extern "C" fn app_add_mesh(app: *mut Glim, mesh: FfiMesh) {
             target_mesh,
             mesh,
             app.config.coordinate_system,
-            &mut app.seams,
             fix_seams,
             emissive,
         );

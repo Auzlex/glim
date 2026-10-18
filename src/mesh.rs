@@ -2,11 +2,7 @@ use ash::vk::{self, Handle};
 use tinybvh::{Cwbvh, CwbvhData};
 
 use crate::{
-    CoordinateSystem, LightmapGroup,
-    buffer::Buffer,
-    math::*,
-    seams::{Seam, find_seams},
-    vulkan_context::VulkanContext,
+    CoordinateSystem, LightmapGroup, buffer::Buffer, math::*, vulkan_context::VulkanContext,
 };
 use core::slice;
 
@@ -38,6 +34,12 @@ pub struct Vertex {
     pub flags: u32,
     pub normal: Vector2,
     pub uv: Vector2,
+}
+
+impl Vertex {
+    pub fn group(&self) -> u32 {
+        self.flags & 0xFFFF
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,7 +75,6 @@ impl Mesh {
         &mut self,
         mesh: FfiMesh,
         system: CoordinateSystem,
-        all_seams: &mut Vec<Seam>,
         fix_seams: bool,
         emissive: bool,
     ) {
@@ -85,15 +86,6 @@ impl Mesh {
 
         // let sample_scale = 20.0;
         let unity = system == CoordinateSystem::Unity;
-
-        if fix_seams {
-            let mut flip = true;
-            if unity {
-                flip = false;
-            }
-            let seams = find_seams(indices, positions, normals, uvs, flip, mesh.lightmap_group);
-            all_seams.extend(seams);
-        }
 
         let offset = self.vertices.len() as u32;
 
@@ -113,6 +105,9 @@ impl Mesh {
             }
             if emissive {
                 flags |= 1 << 17;
+            }
+            if fix_seams {
+                flags |= 1 << 18;
             }
 
             let mut uv = uvs[i];
@@ -212,6 +207,7 @@ pub struct GpuMesh {
     pub acceleration_structure: AccelerationStructureType,
 
     pub index_len: u32,
+    pub mesh: Mesh,
 }
 
 impl GpuMesh {
@@ -329,6 +325,7 @@ impl GpuMesh {
             index_buffer,
             acceleration_structure: bvh,
             index_len: merged_mesh.indices.len() as u32,
+            mesh: merged_mesh,
         }
     }
 
@@ -567,9 +564,15 @@ impl GpuMesh {
                 VulkanAs::null(),
                 VulkanAs::null(),
             ]),
-            index_len: 0,
             vertex_buffer: Buffer::null(),
             index_buffer: Buffer::null(),
+            mesh: Mesh {
+                vertices: Vec::new(),
+                indices: Vec::new(),
+                transparent: false,
+                no_shadows: false,
+            },
+            index_len: 0,
         }
     }
 
