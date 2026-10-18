@@ -3,7 +3,7 @@ use tinybvh::{Cwbvh, CwbvhData};
 
 use crate::{
     CoordinateSystem, LightmapGroup,
-    bindings::GlimConfig,
+    bindings::{GlimConfig, Log},
     buffer::Buffer,
     math::*,
     seams::{Seam, find_seams},
@@ -282,6 +282,8 @@ impl GpuMesh {
         );
 
         let bvh = if use_ray_query {
+            Log::msg("Creating Hardware BVH");
+
             let casts_shadows = GpuMesh::create_vulkan_blas(
                 vk,
                 &merged_mesh,
@@ -300,6 +302,8 @@ impl GpuMesh {
             );
             AccelerationStructureType::RayQuery([casts_shadows, no_shadows])
         } else {
+            Log::msg("Creating Software BVH");
+
             let total_indices: usize = meshes.iter().map(|m| m.indices.len()).sum();
             let mut bvh_triangles = Vec::with_capacity(total_indices);
 

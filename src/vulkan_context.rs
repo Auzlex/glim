@@ -126,7 +126,10 @@ impl VulkanContext {
             extensions.push(vk::KHR_PORTABILITY_ENUMERATION_NAME.as_ptr());
         }
 
-        println!("Validation Layers: {} ", config.enable_validation_layers);
+        Log::msg(&format!(
+            "Validation Layers: {} ",
+            config.enable_validation_layers
+        ));
 
         let mut create_info = vk::InstanceCreateInfo {
             p_application_info: &application_info,
