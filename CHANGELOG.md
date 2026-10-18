@@ -1,4 +1,11 @@
 
+# v0.9.1
+
+- Seam fixer now searches for seams between different meshes too globally
+  - If the meshes are on the same lightmap group and both have Stitch Seams enabled on the renderer seams will be stitched
+  - Scenes made with modular assets can benefit from this
+- Refactored logs and added more useful information
+
 # v0.9.0
 
 - Implemented shadow mask baking
