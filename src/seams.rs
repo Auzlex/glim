@@ -84,6 +84,8 @@ fn vec2_eq_approx(a: Vector2, b: Vector2) -> bool {
     (a - b).length_squared() < EPS * EPS
 }
 
+// todo seam fixer should probably decode oct normals when testing equality
+
 pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
     let verts = &mesh.vertices;
 
@@ -107,15 +109,15 @@ pub fn find_seams(mesh: &Mesh, flip_uv_y: bool) -> Vec<Seam> {
         let uvs_equal = vec2_eq_approx(uva0, uvb0);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let va1 = mesh.vertices[e0.b as usize];
-            let pa1 = va1.position;
-            let na1 = va1.normal;
-            let uva1 = va1.uv;
-
             let ve0b = mesh.vertices[e0.b as usize];
-            let pb1 = ve0b.position;
-            let nb1 = ve0b.normal;
-            let uvb1 = ve0b.uv;
+            let pa1 = ve0b.position;
+            let na1 = ve0b.normal;
+            let uva1 = ve0b.uv;
+
+            let ve1b = mesh.vertices[e1.b as usize];
+            let pb1 = ve1b.position;
+            let nb1 = ve1b.normal;
+            let uvb1 = ve1b.uv;
 
             let positions_equal = vec3_eq_approx(pa1, pb1);
             let normals_equal = vec2_eq_approx(na1, nb1);

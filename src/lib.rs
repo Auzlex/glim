@@ -314,9 +314,16 @@ fn initialize_render(app: &mut Glim) {
 
     if !app.config.is_preview {
         let flip = app.config.coordinate_system == CoordinateSystem::Default;
-        let seams = find_seams(&app.gpu_mesh.mesh, flip);
-        app.seams.extend(seams);
+        app.seams = find_seams(&app.gpu_mesh.mesh, flip);
     }
+
+    // no longer needed, free
+    app.gpu_mesh.mesh = Mesh {
+        vertices: Vec::new(),
+        indices: Vec::new(),
+        transparent: false,
+        no_shadows: false,
+    };
 
     match &app.gpu_mesh.acceleration_structure {
         mesh::AccelerationStructureType::RayQuery(vulkan_as) => {
