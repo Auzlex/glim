@@ -5,63 +5,45 @@ Easy to use, lightweight (only ~1MB) and works with Unity light components.
 
 ## Features
 
-- [x] Hardware Ray-Tracing with `VK_KHR_ray_query`
-- [x] Software Ray-Tracing with Compressed Wide BVHs
-- [x] Realtime path-traced preview window
-- Operating Systems
-  - [x] Windows
-  - [x] Linux
-  - [ ] macOS*
-- Graphics Cards
-  - [x] Nvidia
-  - [x] AMD
-  - [x] Intel
-- Lightmap Modes
-  - [x] Non-Directional
-  - [x] Dominant Direction
-  - [x] Monochromatic L1 SH
-- Unity Render Pipelines
-  - [x] Built-In
-  - [x] URP
-  - [ ] HDRP
-- UV Packing
-  - [x] Hole filling
-  - [x] Scale Offset mode
-  - [x] No Packing mode
-  - [ ] Chart Splitting mode
-  - [ ] Efficient LOD chart packing
-- Lights
-  - [x] Directional
-  - [x] Point
-  - [x] Spot
-  - [x] Area
-  - [x] Disc
-- [x] Light Cookies
-- [x] Open Image Denoise 2.0
-- [x] Emissive Materials with Multiple Importance Sampling
-- [x] Seam stitching with a least squares solver
-- [x] L2 Spherical Harmonics Light Probes
-- [x] VRC Light Volumes
-- [x] Lightmap Groups
-- [ ] Terrain Trees Support
-- [x] Mixed Lights
-  - [x] Baked Indirect
-  - [x] Shadowmask
-  - [ ] Subtractive
-- [x] Ambient Occlusion
-- [ ] URP Adaptive Probe Volumes
-- [ ] Light Probe Occlusion
-- [x] Emissive Multiplier
-- [x] Skybox Reflection Probe
-- [ ] Double-sided GI
-- [ ] Meta Pass fallback
-- [ ] Light Volume Denoising
+- Nvidia, AMD, Intel GPUs
+- Windows, Linux, [macOS](https://github.com/z3y/glim/issues/30)
+- Hardware Ray-Tracing with [VK_KHR_ray_query](https://vulkan.gpuinfo.org/listdevicescoverage.php?extension=VK_KHR_ray_query)
+- Software Ray-Tracing with [CWBVHs](https://research.nvidia.com/publication/2017-07_efficient-incoherent-ray-traversal-gpus-through-compressed-wide-bvhs)
+- Realtime path-traced preview window
+- Non-Directional, Dominant Direction and Monochromatic L1 SH Lightmaps
+- Unity BIRP and URP
+- Directional, Point, Spot, Rectangle and Disc Lights
+- RGB Light Cookies
+- Emissive Materials with Multiple Importance Sampling
+- UV Packing with hole filling
+- Open Image Denoise 2.0
+- Seam stitching with a least squares solver
+- L2 SH Light Probe Baking
+- [VRC Light Volumes](https://github.com/REDSIM/VRCLightVolumes)
+- Mixed Lights Baked Indirect and Shadowmask mode
+- Ambient Occlusion
+- Lightmap Groups
 
 ## Support
+
 - If you'd like to see it further improved, consider supporting on [Patreon](https://patreon.com/z3y)
 - Alternatively you can consider buying some of my assets on [Booth](https://z3y.booth.pm/)
 
 ## How to use
+
+### Lightmapper Setup
+
+Make sure to also read [Updating](#updating) ⚠️
+
+#### VPM Package
+
+- Install with the [VRChat Creator Companion](https://z3y.github.io/vpm-package-listing/)
+
+#### UPM Package
+
+- Download the release https://github.com/z3y/glim/releases
+- Unzip the folder, open the package manager in unity `Window > Package Manager`
+- Click + add package from disk and select the `package.json` from that folder
 
 ### Denoiser Setup
 
@@ -76,24 +58,19 @@ Easy to use, lightweight (only ~1MB) and works with Unity light components.
    - Value: the path to the extracted folder (e.g. `C:\oidn`)
    - Click **OK** on all windows
 4. Restart Unity and Unity Hub
+5. After baking the log will show if OIDN loaded properly.
 
 #### Linux
+
 - Fedora Linux: `sudo dnf install oidn`
+- Debian / Ubuntu: `sudo apt install libopenimagedenoise-dev`
+- Arch Linux: `sudo pacman -S openimagedenoise`
+- Alpine Linux: `sudo apk add openimagedenoise`
+- NixOS: `nix-shell -p openimagedenoise`
 
 #### macOS
+
 - `brew install open-image-denoise`
-
-### Lightmapper Setup
-
-Make sure to also read [Updating](#updating) ⚠️
-
-#### VPM Package
- - Install with the [VRChat Creator Companion](https://z3y.github.io/vpm-package-listing/)
-
-#### UPM Package
-  - Download the release https://github.com/z3y/glim/releases
-  - Unzip the folder, open the package manager in unity `Window > Package Manager`
-  - Click + add package from disk and select the `package.json` from that folder
 
 ### Baking
   
@@ -103,12 +80,17 @@ Make sure to also read [Updating](#updating) ⚠️
 - Menu Item `Tools > Glim > Bake`
 - Adjust settings on the created GameObject and press `Generate Lighting`
 
-#### Notes
+### Updating
 
-- Scale In Lightmap is calculated differently from the Unity lightmapper, readjust it on the renderers if needed
-- Light cookies use the RGB channels by default (unlike built-in where it only uses the alpha)
-- Cookies for spot lights are always masked by the spot cone falloff
-- Glim can work on macOS via MoltenVK with `VK_KHR_ray_query`, however the stock MoltenVK does not yet implement it. There is a [pending PR](https://github.com/KhronosGroup/MoltenVK/pull/2771) that contains the required features. You can temporarily build MoltenVK from that fork, or use the version from https://github.com/owlboy/glim-moltenvk-dist/. Glim releases also do not include macOS builds currently so you would have to also [build](#building) it yourself.
+- Make sure to close Unity first before updating to unload all currently loaded assemblies.
+- Import the new package.
+
+### Lightmap Groups
+
+ - By default one lightmap texture is baked containing the entire scene
+ - To create multiple lightmaps add a `Lightmap Group Selector` component to a game object
+ - Right click, `Create > Lightmap Group (Glim)` asset and assign it to the selector component
+ - All the child GameObjects will be packed into that group
 
 ### Additional Light Settings
 
@@ -116,33 +98,6 @@ For additional settings for baking you can add a `GlimAdditionalLightSettings` c
 
 - Exposes the inner angle for spot lights and draws a gizmo for the Built-In render pipeline
 - Adds an Area (Rectangle) Light option for a cookie texture
-
-### Updating
-
-- Make sure to close Unity first before updating to unload all currently loaded assemblies.
-- Import the new package.
-
-#### Lightmap Groups
-
- - By default one lightmap texture is baked containing the entire scene
- - To create multiple lightmaps add a `Lightmap Group Selector` component to a game object
- - Right click, `Create > Lightmap Group (Glim)` asset and assign it to the selector component
- - All the child GameObjects will be packed into that group
-
-## [Discord](https://discord.gg/bw46tKgRFT)
- 
-## Stack
-
-- Written in Rust, using the lightweight Ash Vulkan crate, with minimal dependencies
-- Shaders written in Slang
-
-## Building
-
-- Add the [slang](https://github.com/shader-slang/slang) shader compiler at PATH
-- `cargo build --release`
-- Copy the compiled dll into the `/Editor` folder
-- Alternatively you can run the `test_preview` or `test_bake` tests without Unity
-
 
 ## Screenshots
 
@@ -158,4 +113,13 @@ For additional settings for baking you can add a `GlimAdditionalLightSettings` c
 
 ### Directional Lightmap
 
-![Lightmap](/images/Lightmap-0_comp_dir.jpg)
+![Directional Lightmap](/images/Lightmap-0_comp_dir.jpg)
+
+## Building
+
+- Add the [slang](https://github.com/shader-slang/slang) shader compiler at PATH
+- `cargo build --release`
+- Copy the compiled dll into the `/Editor` folder
+- Alternatively you can run the `test_preview` or `test_bake` tests without Unity
+
+## [Discord](https://discord.gg/bw46tKgRFT)
