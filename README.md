@@ -1,7 +1,7 @@
 # GPU Lightmapper
 
 A GPU accelerated lightmapper for Unity, powered by Vulkan.
-Easy to use, lightweight (only ~1MB) and works with Unity light components.
+Easy to use, lightweight (only ~1MB) and fast.
 
 ## Features
 
