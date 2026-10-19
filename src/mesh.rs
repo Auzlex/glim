@@ -10,6 +10,7 @@ use crate::{
     vulkan_context::VulkanContext,
 };
 use core::slice;
+use std::time::Instant;
 
 pub const GEOMETRIES_VARIANTS: usize = 4;
 
@@ -302,7 +303,7 @@ impl GpuMesh {
             );
             AccelerationStructureType::RayQuery([casts_shadows, no_shadows])
         } else {
-            Log::msg("Creating Software BVH");
+            let start = Instant::now();
 
             let total_indices: usize = meshes.iter().map(|m| m.indices.len()).sum();
             let mut bvh_triangles = Vec::with_capacity(total_indices);
@@ -335,6 +336,9 @@ impl GpuMesh {
 
             let bvh = Cwbvh::build(&bvh_triangles);
             let data = bvh.extract();
+
+            let elapsed = Instant::now().duration_since(start).as_secs_f32();
+            Log::msg(&format!("Created Software CWBVH in {}s", elapsed));
 
             AccelerationStructureType::BVH { cwbvh: bvh, data }
         };
