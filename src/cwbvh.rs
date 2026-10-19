@@ -1016,13 +1016,13 @@ fn encode_cwbvh(
                         (v2[0] - v0[0]).to_bits(),
                         (v2[1] - v0[1]).to_bits(),
                         (v2[2] - v0[2]).to_bits(),
-                        0,
+                        v2[3].to_bits(),
                     ]);
                     tris.push([
                         (v1[0] - v0[0]).to_bits(),
                         (v1[1] - v0[1]).to_bits(),
                         (v1[2] - v0[2]).to_bits(),
-                        0,
+                        v1[3].to_bits(),
                     ]);
                     tris.push([v0[0].to_bits(), v0[1].to_bits(), v0[2].to_bits(), tri_idx]);
                 }
