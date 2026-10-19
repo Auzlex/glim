@@ -1,10 +1,10 @@
 use ash::vk::{self, Handle};
-use tinybvh::{Cwbvh, CwbvhData};
 
 use crate::{
     CoordinateSystem, LightmapGroup,
     bindings::{GlimConfig, Log},
     buffer::Buffer,
+    cwbvh::Cwbvh,
     math::*,
     seams::{Seam, find_seams},
     vulkan_context::VulkanContext,
@@ -206,7 +206,7 @@ impl VulkanAs {
 
 pub enum AccelerationStructureType {
     RayQuery([VulkanAs; 2]),
-    BVH { cwbvh: Cwbvh, data: CwbvhData },
+    BVH { cwbvh: Cwbvh },
 }
 
 pub struct GpuMesh {
@@ -334,9 +334,8 @@ impl GpuMesh {
             }
 
             let bvh = Cwbvh::build(&bvh_triangles);
-            let data = bvh.extract();
 
-            AccelerationStructureType::BVH { cwbvh: bvh, data }
+            AccelerationStructureType::BVH { cwbvh: bvh }
         };
 
         Self {
@@ -594,9 +593,7 @@ impl GpuMesh {
                 vulkan_blas[0].destroy(vk);
                 vulkan_blas[1].destroy(vk);
             }
-            AccelerationStructureType::BVH { cwbvh, data: _ } => {
-                cwbvh.free();
-            }
+            AccelerationStructureType::BVH { cwbvh: _ } => {}
         }
 
         self.index_buffer.destroy(vk);
