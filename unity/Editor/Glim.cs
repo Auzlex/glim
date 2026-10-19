@@ -824,7 +824,7 @@ namespace Glim
 
             if (renderer.scaleInLightmap == 0)
             {
-                Debug.LogWarning($"Scale In Lightmap 0 not supported <a href=\"https://github.com/z3y/glim/issues/19\">(Read Issue #19)</a> GameObject {renderer.name} will not be baked.");
+                Debug.LogWarning($"Scale In Lightmap 0 not supported <a href=\"https://github.com/z3y/glim/issues/19\">(Read Issue #19)</a> GameObject {renderer.name} will not be baked.", renderer.gameObject);
                 return false;
             }
 
