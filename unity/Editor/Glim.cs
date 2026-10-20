@@ -236,7 +236,7 @@ namespace Glim
                 };
 
 
-#if UNITY_2023_1_OR_NEWER
+#if UNITY_6000_1_OR_NEWER
                 l.area_or_cookie_size = light.cookieSize2D;
 #else
                 l.area_or_cookie_size = new Vector2(light.cookieSize, light.cookieSize);
