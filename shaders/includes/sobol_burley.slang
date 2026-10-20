@@ -119,8 +119,8 @@ float2 SobolBurleySample2D(uint index, uint dimensionSet, uint seed, uint shuffl
 
     // Shuffle and mask. The masking is just for better
     // performance at low sample counts.
-    index &= shuffledIndexMask;
     index = ReversedBitOwen(reversebits(index), seed ^ 0xf8ade99a);
+    index &= reversebits(shuffledIndexMask);
 
     return float2(SobolBurley(index, 0, seed ^ 0xe0aaaf76),
                   SobolBurley(index, 1, seed ^ 0x94964d4e));
@@ -215,4 +215,15 @@ uint3 BlueNoiseIndexing(uint pixelIndex,
         uint globalSampleIndex = (sample - 1) + (pixelIndex * blueNoiseSequenceLength);
         return uint3(globalSampleIndex, 0, 0xffffffff);
     }
+}
+
+uint IndexMaskForCount(uint n)
+{
+    uint m = max(n, 1u) - 1u;
+    m |= m >> 1;
+    m |= m >> 2;
+    m |= m >> 4;
+    m |= m >> 8;
+    m |= m >> 16;
+    return m;
 }

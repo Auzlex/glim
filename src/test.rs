@@ -60,7 +60,7 @@ mod tests {
             vulkan_validation_layers: true,
             seams_debug: false,
             hardware_rt: HARDWARE_RT,
-            throttle_preview_ms: 2,
+            throttle_preview_ms: 0,
             preview_settings,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
