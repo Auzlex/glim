@@ -6,8 +6,9 @@ use std::path::PathBuf;
 use std::{ptr, time::Duration};
 
 use glfw_sys::{
-    GLFW_KEY_ESCAPE, GLFW_PRESS, GLFWwindow, glfwCreateWindowSurface, glfwGetKey, glfwPollEvents,
-    glfwSetWindowShouldClose, glfwWindowShouldClose,
+    GLFW_KEY_ESCAPE, GLFW_PRESS, GLFWwindow, glfwCreateWindowSurface, glfwGetKey,
+    glfwGetWindowSize, glfwPollEvents, glfwSetWindowShouldClose, glfwSetWindowTitle,
+    glfwWindowShouldClose,
 };
 
 use crate::bindings::*;
@@ -119,6 +120,7 @@ pub struct Glim {
     pub cookie_array: TextureArray,
 
     pub linear_sampler: vk::Sampler,
+    pub window_title: String,
 }
 
 impl Drop for Glim {
@@ -516,6 +518,25 @@ fn initialize_render(app: &mut Glim) {
     }
 }
 
+fn format_window_title(
+    title: &mut String,
+    sample_index: u32,
+    max_samples: u32,
+    light_count: usize,
+    hardware_rt: bool,
+    w: i32,
+    h: i32,
+) {
+    use std::fmt::Write;
+    title.clear();
+
+    let _ = write!(
+        title,
+        "Preview [Hardware RT: {}] [{}x{}] [Lights {}] [Sample {}/{}]\0",
+        hardware_rt, w, h, light_count, sample_index, max_samples
+    );
+}
+
 fn render_preview(app: &mut Glim) {
     let window = app.window;
 
@@ -559,11 +580,35 @@ fn render_preview(app: &mut Glim) {
         while glfwWindowShouldClose(window) == 0 {
             glfwPollEvents();
 
-            print!(
-                "\rSample: {} / {}",
-                app.preview_push_constants.sample_index, app.config.direct_emission_samples
+            Log::progress(
+                (app.config.direct_emission_samples as f32
+                    / app.preview_push_constants.sample_index as f32)
+                    * 100.0,
             );
-            io::stdout().flush().unwrap();
+
+            if app.preview_push_constants.sample_index % 16 == 0
+                || app.preview_push_constants.sample_index == app.config.direct_emission_samples
+                || app.preview_push_constants.sample_index <= 1
+            {
+                use std::ffi::c_char;
+
+                let hardwar_rt = app.config.hardware_rt && app.vk.as_device.is_some();
+
+                let (mut w, mut h) = (0, 0);
+                glfwGetWindowSize(window, &mut w, &mut h);
+
+                format_window_title(
+                    &mut app.window_title,
+                    app.preview_push_constants.sample_index,
+                    app.config.direct_emission_samples,
+                    app.cpu_lights.len(),
+                    hardwar_rt,
+                    w,
+                    h,
+                );
+
+                glfwSetWindowTitle(window, app.window_title.as_ptr().cast::<c_char>());
+            }
 
             let now = std::time::Instant::now();
 
@@ -1152,7 +1197,8 @@ impl Glim {
             window_extensions: Vec::new(),
         };
 
-        let window = initialize_window(&config, &mut vulkan_config);
+        let window_title = String::from("Preview\0");
+        let window = initialize_window(&config, &mut vulkan_config, &window_title);
 
         let create_surface_callback = |instance: &ash::Instance| unsafe {
             let instance = instance.handle().as_raw() as glfw_sys::VkInstance;
@@ -1279,6 +1325,7 @@ impl Glim {
             light_cookies: Vec::new(),
             cookie_array: TextureArray::null(),
             linear_sampler,
+            window_title,
         }
     }
 

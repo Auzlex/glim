@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CStr, c_int},
+    ffi::{c_char, c_int},
     ptr,
 };
 
@@ -7,8 +7,7 @@ use glfw_sys::*;
 
 use crate::{Glim, GlimConfig, math::Vector3, vulkan_context::VulkanConfig};
 
-pub fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
-    const TITLE: &CStr = c"Lightmap Preview";
+pub fn create_window(width: u32, height: u32, title: &String) -> *mut GLFWwindow {
     let width = width as c_int;
     let height = height as c_int;
 
@@ -19,13 +18,8 @@ pub fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-        glfwCreateWindow(
-            width,
-            height,
-            TITLE.as_ptr(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-        )
+        let title = title.as_ptr().cast::<c_char>();
+        glfwCreateWindow(width, height, title, ptr::null_mut(), ptr::null_mut())
     };
 
     #[cfg(target_os = "windows")]
@@ -37,12 +31,17 @@ pub fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
     window
 }
 
-pub fn initialize_window(config: &GlimConfig, vulkan_config: &mut VulkanConfig) -> *mut GLFWwindow {
+pub fn initialize_window(
+    config: &GlimConfig,
+    vulkan_config: &mut VulkanConfig,
+    title: &String,
+) -> *mut GLFWwindow {
     let mut window = ptr::null_mut();
     if vulkan_config.enable_window {
         window = create_window(
             config.preview_settings.width,
             config.preview_settings.height,
+            title,
         );
 
         unsafe {
