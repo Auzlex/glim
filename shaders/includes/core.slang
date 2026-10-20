@@ -9,35 +9,34 @@ bool TriangleAlphaTest(uint primitiveID, float2 bary)
     return alpha >= 0.5;
 }
 
-uint ExtractByte(uint value, uint byteIndex)
-{
-    return (value >> (byteIndex * 8)) & 0xFF;
-}
-
-float4 ExtractBytes(float value)
-{
-    uint packed = asuint(value);
-
-    float4 channels = float4(
-        ExtractByte(packed, 0),
-        ExtractByte(packed, 1),
-        ExtractByte(packed, 2),
-        ExtractByte(packed, 3));
-
-    return channels;
-}
-
 #pragma warning(disable: 41035)
+
+float4 UnpackBytes(uint p)
+{
+    return float4((uint4(p, p, p, p) >> uint4(0, 8, 16, 24)) & 0xFFu);
+}
+
+float SafeDirComponent(float d)
+{
+    const float EPS = 1e-15f;
+    if (abs(d) < EPS)
+        return (asuint(d) & 0x80000000u) != 0u ? -EPS : EPS;
+    return d;
+}
+
+[ForceInline]
 bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
 {
     hit = {};
 
     float3 O = ray.P;
-    float3 D = ray.D;
+    float3 D = float3(SafeDirComponent(ray.D.x), SafeDirComponent(ray.D.y), SafeDirComponent(ray.D.z));
     float tmax = ray.tMax;
 
     float3 invDir = rcp(D);
-    uint octinv4 = (7u - ((D.x < 0 ? 4u : 0u) | (D.y < 0 ? 2u : 0u) | (D.z < 0 ? 1u : 0u))) * 0x1010101u;
+    bool3 neg = D < 0.0;
+    uint octinv = 7u - ((neg.x ? 4u : 0u) | (neg.y ? 2u : 0u) | (neg.z ? 1u : 0u));
+    uint octinv4 = octinv * 0x1010101u;
 
     uint2 stack[32];
     uint stackPtr = 0;
@@ -62,7 +61,7 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
                 stack[stackPtr++] = nodeGroup;
             }
 
-            uint slotIndex = (childBitIndex - 24u) ^ (octinv4 & 255u);
+            uint slotIndex = (childBitIndex - 24u) ^ octinv;
             uint relativeIndex = countbits(mask & ~(0xFFFFFFFFu << slotIndex));
             uint childNodeIndex = childNodeBaseIndex + relativeIndex;
 
@@ -73,25 +72,30 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
             float4 n4 = BVHNodes[childNodeIndex * 5 + 4];
 
             uint packed = asuint(n0.w);
-            float nodeInvX = asfloat(((ExtractByte(packed, 0) ^ 0x80u) - 0x80u + 127u) << 23) * invDir.x;
-            float nodeInvY = asfloat(((ExtractByte(packed, 1) ^ 0x80u) - 0x80u + 127u) << 23) * invDir.y;
-            float nodeInvZ = asfloat(((ExtractByte(packed, 2) ^ 0x80u) - 0x80u + 127u) << 23) * invDir.z;
-            float3 nodeInvDir = float3(nodeInvX, nodeInvY, nodeInvZ);
+            int3 ex = (int3(asint(packed)) << int3(24, 16, 8)) >> 24;
+            float3 nodeInvDir = asfloat(uint3(ex + 127) << 23) * invDir;
             float3 nodePos = (n0.xyz - O) * invDir;
+
+            uint2 xl = neg.x ? asuint(n3.zw) : asuint(n2.xy);
+            uint2 xh = neg.x ? asuint(n2.xy) : asuint(n3.zw);
+            uint2 yl = neg.y ? asuint(n4.xy) : asuint(n2.zw);
+            uint2 yh = neg.y ? asuint(n2.zw) : asuint(n4.xy);
+            uint2 zl = neg.z ? asuint(n4.zw) : asuint(n3.xy);
+            uint2 zh = neg.z ? asuint(n3.xy) : asuint(n4.zw);
+            uint2 meta2 = asuint(n1.zw);
 
             uint hitmask = 0;
 
             [unroll]
             for (int i = 0; i < 2; ++i)
             {
-                uint meta = asuint(i == 0 ? n1.z : n1.w);
-
-                float4 lox = ExtractBytes(invDir.x < 0 ? (i == 0 ? n3.z : n3.w) : (i == 0 ? n2.x : n2.y));
-                float4 loy = ExtractBytes(invDir.y < 0 ? (i == 0 ? n4.x : n4.y) : (i == 0 ? n2.z : n2.w));
-                float4 loz = ExtractBytes(invDir.z < 0 ? (i == 0 ? n4.z : n4.w) : (i == 0 ? n3.x : n3.y));
-                float4 hix = ExtractBytes(invDir.x < 0 ? (i == 0 ? n2.x : n2.y) : (i == 0 ? n3.z : n3.w));
-                float4 hiy = ExtractBytes(invDir.y < 0 ? (i == 0 ? n2.z : n2.w) : (i == 0 ? n4.x : n4.y));
-                float4 hiz = ExtractBytes(invDir.z < 0 ? (i == 0 ? n3.x : n3.y) : (i == 0 ? n4.z : n4.w));
+                uint meta = meta2[i];
+                float4 lox = UnpackBytes(xl[i]);
+                float4 loy = UnpackBytes(yl[i]);
+                float4 loz = UnpackBytes(zl[i]);
+                float4 hix = UnpackBytes(xh[i]);
+                float4 hiy = UnpackBytes(yh[i]);
+                float4 hiz = UnpackBytes(zh[i]);
 
                 float4 tminx = lox * nodeInvDir.x + nodePos.x;
                 float4 tmaxx = hix * nodeInvDir.x + nodePos.x;
@@ -100,7 +104,7 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
                 float4 tminz = loz * nodeInvDir.z + nodePos.z;
                 float4 tmaxz = hiz * nodeInvDir.z + nodePos.z;
 
-                float4 cmin = max(max(max(tminx, tminy), tminz), 0.0f);
+                float4 cmin = max(max(max(tminx, tminy), tminz), 0.0);
                 float4 cmax = min(min(min(tmaxx, tmaxy), tmaxz), tmax);
 
                 uint isInner = (meta & (meta << 1)) & 0x10101010u;
@@ -121,14 +125,9 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
             }
 
             nodeGroup.x = asuint(n1.x);
-            nodeGroup.y = (hitmask & 0xFF000000u) | (asuint(n0.w) >> 24);
+            nodeGroup.y = (hitmask & 0xFF000000u) | (packed >> 24);
             triGroup.x = asuint(n1.y);
             triGroup.y = hitmask & 0x00FFFFFFu;
-        }
-        else
-        {
-            triGroup = nodeGroup;
-            nodeGroup = uint2(0, 0u);
         }
 
         while (triGroup.y != 0u)
@@ -137,42 +136,37 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
             int triAddr = triGroup.x + triangleIndex * 3;
             triGroup.y -= 1u << triangleIndex;
 
-            // CWBVHTriangles layout: [e1, e2, v0] each a float4
+            // memory layout: [v2-v0, v1-v0, v0]
             float4 e1 = BVHTriangles[triAddr + 0];
             float4 e2 = BVHTriangles[triAddr + 1];
             float4 v0 = BVHTriangles[triAddr + 2];
 
+            if (shadowRay && e1.w != 0)
+            {
+                continue;
+            }
+
             float3 r = cross(D, e1.xyz);
             float a = dot(e2.xyz, r);
-            if (abs(a) > 1e-7f)
+            if (a != 0.0)
             {
-                float f = 1.0f / a;
+                float f = 1.0 / a;
                 float3 s = O - v0.xyz;
                 float u = f * dot(s, r);
-                if (u >= 0.0f && u <= 1.0f)
+                if (u >= 0.0 && u <= 1.0)
                 {
                     float3 q = cross(s, e2.xyz);
                     float v = f * dot(D, q);
-                    if (v >= 0.0f && u + v <= 1.0f)
+                    if (v >= 0.0 && u + v <= 1.0)
                     {
                         float d = f * dot(e1.xyz, q);
-                        if (d > 0.0f && d < tmax)
+                        if (d > 0.0 && d < tmax)
                         {
-                            bool transparent = e2.w != 0;
-                            bool no_shadows = e1.w != 0;
-
-                            if (no_shadows && shadowRay)
-                            {
-                                continue;
-                            }
 
                             [branch]
-                            if (transparent)
+                            if (e2.w != 0)
                             {
-                                uint primitiveID = asuint(v0.w);
-                                float2 bary = float2(u, v);
-                                bool visible = TriangleAlphaTest(primitiveID, bary);
-                                if (!visible)
+                                if (!TriangleAlphaTest(asuint(v0.w), float2(u, v)))
                                 {
                                     continue;
                                 }
@@ -205,18 +199,9 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
     if (tmax < ray.tMax)
     {
         hit.bary = uv;
-
-        float3 e1 = BVHTriangles[hitTriIndex + 0].xyz;
-        float3 e2 = BVHTriangles[hitTriIndex + 1].xyz;
-        float4 v0 = BVHTriangles[hitTriIndex + 2];
-
-        hit.primitiveID = asuint(v0.w);
+        hit.primitiveID = asuint(BVHTriangles[hitTriIndex + 2].w);
         hit.frontFace = hitA > 0.0;
         hit.t = tmax;
-
-        // hit.p0 = v0.xyz;
-        // hit.p1 = v0.xyz + e2;
-        // hit.p2 = v0.xyz + e1;
         return true;
     }
 
@@ -553,7 +538,7 @@ float3 ShadeTriangleLight(uint primitiveID, float3 positionWS, float3 normalWS, 
 {
     float r0 = sqrt(xi.x);
     float r1 = xi.y;
-    float2 bary = float2(r0 * (1.0f - r1), r0 * r1);
+    float2 bary = float2(r0 * (1.0 - r1), r0 * r1);
 
     Surface emissiveSurface = Surface::Get(primitiveID, bary);
 
@@ -584,7 +569,7 @@ float3 ShadeTriangleLight(uint primitiveID, float3 positionWS, float3 normalWS, 
     Ray shadowRay;
     shadowRay.P = positionWS;
     shadowRay.tMin = 0;
-    shadowRay.tMax = max(sqrt(distanceSquare) - 0.001f, 0.0001);
+    shadowRay.tMax = max(sqrt(distanceSquare) - 0.001, 0.0001);
     shadowRay.D = L;
 
     float visible = any(color > 0.0) ? 1 : 0;
