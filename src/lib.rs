@@ -581,14 +581,10 @@ fn render_preview(app: &mut Glim) {
             glfwPollEvents();
 
             Log::progress(
-                (app.config.direct_emission_samples as f32
-                    / app.preview_push_constants.sample_index as f32)
-                    * 100.0,
+                app.preview_push_constants.sample_index as f32
+                    / app.config.direct_emission_samples as f32,
             );
 
-            if app.preview_push_constants.sample_index % 16 == 0
-                || app.preview_push_constants.sample_index == app.config.direct_emission_samples
-                || app.preview_push_constants.sample_index <= 1
             {
                 use std::ffi::c_char;
 
