@@ -25,7 +25,7 @@ float SafeDirComponent(float d)
 }
 
 [ForceInline]
-bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
+bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay, bool shadowRenderers)
 {
     hit = {};
 
@@ -141,9 +141,12 @@ bool BVHTraceRay(Ray ray, out Hit hit, bool shadowRay)
             float4 e2 = BVHTriangles[triAddr + 1];
             float4 v0 = BVHTriangles[triAddr + 2];
 
-            if (shadowRay && e1.w != 0)
+            if (!shadowRenderers)
             {
-                continue;
+                if (shadowRay && e1.w != 0)
+                {
+                    continue;
+                }
             }
 
             float3 r = cross(D, e1.xyz);
@@ -292,10 +295,11 @@ bool TraceRay(Ray ray, out Hit hit)
     }
     else
     {
-        return BVHTraceRay(ray, hit, false);
+        return BVHTraceRay(ray, hit, false, false);
     }
 }
 
+// exclude renderers with no shadow casting
 bool TraceShadowRay(Ray ray)
 {
     if (HARDWARE_RT == 1)
@@ -319,7 +323,35 @@ bool TraceShadowRay(Ray ray)
     else
     {
         Hit hit = {};
-        return BVHTraceRay(ray, hit, true);
+        return BVHTraceRay(ray, hit, true, false);
+    }
+}
+
+// includes renderers with no shadow casting
+bool TraceAnyHit(Ray ray)
+{
+    if (HARDWARE_RT == 1)
+    {
+        RayDesc rayDesc;
+        rayDesc.Origin = ray.P;
+        rayDesc.Direction = ray.D;
+        rayDesc.TMin = ray.tMin;
+        rayDesc.TMax = ray.tMax;
+
+        RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> query;
+        query.TraceRayInline(TopLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0x01, rayDesc);
+
+        while (query.Proceed())
+        {
+            QueryHandleAlpha(query);
+        }
+
+        return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT;
+    }
+    else
+    {
+        Hit hit = {};
+        return BVHTraceRay(ray, hit, true, true);
     }
 }
 
@@ -476,7 +508,7 @@ bool UseSmoothPosition(Surface surface)
         ray.tMin = 0;
         ray.tMax = d;
 
-        if (!TraceShadowRay(ray))
+        if (!TraceAnyHit(ray))
         {
             return true;
         }
@@ -583,7 +615,7 @@ float3 ShadeTriangleLight(uint primitiveID, float3 positionWS, float3 normalWS, 
     [branch]
     if (visible > 0.0)
     {
-        if (TraceShadowRay(shadowRay))
+        if (TraceAnyHit(shadowRay))
         {
             color = 0.0;
         }
