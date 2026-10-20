@@ -41,6 +41,7 @@ mod bindings;
 mod buffer;
 mod camera;
 mod compute_shader;
+mod cwbvh;
 mod graphics_shader;
 mod lights;
 mod math;
@@ -338,18 +339,18 @@ fn initialize_render(app: &mut Glim) {
         mesh::AccelerationStructureType::RayQuery(vulkan_as) => {
             app.tlas = create_tlas(&app.vk, &vulkan_as)
         }
-        mesh::AccelerationStructureType::BVH { cwbvh: _, data } => {
+        mesh::AccelerationStructureType::BVH { cwbvh } => {
             app.bvh_nodes = Buffer::new(
                 &app.vk,
                 String::from("BVH Nodes"),
-                &data.nodes,
+                &cwbvh.nodes,
                 vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
                 vk::MemoryPropertyFlags::DEVICE_LOCAL,
             );
             app.bvh_triangles = Buffer::new(
                 &app.vk,
                 String::from("BVH Triangles"),
-                &data.triangles,
+                &cwbvh.triangles,
                 vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
                 vk::MemoryPropertyFlags::DEVICE_LOCAL,
             );

@@ -127,8 +127,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
     float3 probePosition = probe.position;
     float sampleScale = 1.0 / float(sampleCount);
 
-    uint sobolIndexMask = ~0u;
-    SamplingPattern pattern = SamplingPattern::BlueNoisePure;
+    SamplingPattern pattern = SamplingPattern::SobolBurley;
+    uint sobolIndexMask = IndexMaskForCount(Push.maxSamples);
     uint pixelSeed = RNGPixelInit1D(probeIndex);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
     uint dimension = 0;
