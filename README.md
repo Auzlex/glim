@@ -99,11 +99,6 @@ For additional settings for baking you can add a `GlimAdditionalLightSettings` c
 - Exposes the inner angle for spot lights and draws a gizmo for the Built-In render pipeline
 - Adds an Area (Rectangle) Light option for a cookie texture
 
-## AI Disclosure
-
-AI tools were used to assist with parts of the development process. 
-AI Generated PRs are accepted, as long as they're reasonable to review.
-
 ## Screenshots
 
 ![Lightmaps](/images/lightmaps.jpg)
@@ -119,6 +114,11 @@ AI Generated PRs are accepted, as long as they're reasonable to review.
 ### Directional Lightmap
 
 ![Directional Lightmap](/images/Lightmap-0_comp_dir.jpg)
+
+## AI Disclosure
+
+AI tools were used to assist with parts of the development process. 
+AI Generated PRs are accepted, as long as they're reasonable to review.
 
 ## Building
 
