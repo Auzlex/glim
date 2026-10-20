@@ -49,6 +49,9 @@ pub struct VulkanContext {
     pub swapchain: SwapchainData,
 
     pub as_device: Option<khr::acceleration_structure::Device>,
+
+    pub debug_utils_messanger: vk::DebugUtilsMessengerEXT,
+    pub debug_utils_instance: ash::ext::debug_utils::Instance,
 }
 
 // thanks owlboy for the help
@@ -167,6 +170,13 @@ impl VulkanContext {
             create_surface_callback(&instance)
         } else {
             vk::SurfaceKHR::null()
+        };
+
+        let debug_utils_instance = ash::ext::debug_utils::Instance::new(&entry, &instance);
+        let debug_utils_messanger = unsafe {
+            debug_utils_instance
+                .create_debug_utils_messenger(&debug_create_info, None)
+                .unwrap()
         };
 
         let mut physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
@@ -402,6 +412,8 @@ impl VulkanContext {
             swapchain_device,
             swapchain,
             command_buffer,
+            debug_utils_messanger,
+            debug_utils_instance,
         }
     }
 
@@ -648,6 +660,9 @@ impl Drop for VulkanContext {
             device.destroy_descriptor_pool(self.descriptor_pool, None);
 
             device.destroy_command_pool(self.command_pool, None);
+
+            self.debug_utils_instance
+                .destroy_debug_utils_messenger(self.debug_utils_messanger, None);
 
             if !self.surface.is_null() {
                 self.surface_instance.destroy_surface(self.surface, None);
