@@ -532,7 +532,7 @@ fn format_window_title(
 
     let _ = write!(
         title,
-        "Preview [Hardware RT: {}] [{}x{}] [Lights {}] [Sample {}/{}]\0",
+        "Preview | Hardware RT: {} | {}x{} | Lights {} | Sample {}/{}\0",
         hardware_rt, w, h, light_count, sample_index, max_samples
     );
 }
