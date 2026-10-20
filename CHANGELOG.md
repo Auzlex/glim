@@ -1,4 +1,12 @@
 
+# v0.9.2
+
+- Software BVH creation is now 60% faster, ray tracing performance is the same
+- Fixed artifacts with some renderers with shadow casting set to off
+- Added more information to the preview window title
+- Warning log for objects with scale in lightmap 0
+- Fixed validation layers not logging inside Unity console when enabled
+
 # v0.9.1
 
 - Seam fixer now searches for seams between different meshes too globally
