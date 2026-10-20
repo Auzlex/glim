@@ -21,6 +21,9 @@ Texture2D<float4> Emission[];
 [[vk::image_format("rgba32f")]]
 RWTexture2D<float4> LightmapDiffuse;
 
+[[vk::binding(8, 0)]]
+Texture2D<float> Alphas[];
+
 [[vk::binding(20, 0)]]
 [[vk::image_format("rgba32f")]]
 TextureCube<float4> Skybox;
@@ -106,7 +109,7 @@ const uint GEOMETRIES_2_OFFSET;
 [vk::constant_id(37)]
 const uint GEOMETRIES_3_OFFSET;
 
-DECLARE_CONST_PTR(MainUVs, float2, 38)
+DECLARE_CONST_PTR(MainUVs, float4, 38)
 
 enum LightmapMode : uint
 {
@@ -120,6 +123,13 @@ float4 SampleAlbedo(float2 uv, uint lightmapGroup)
     uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
     Texture2D tex = Albedo[index];
     return saturate(tex[(uint2)uv]);
+}
+
+float SampleAlpha(float2 uv, uint alphaIndex)
+{
+    uint index = NonUniformResourceIndex(alphaIndex);
+    Texture2D<float> tex = Alphas[index];
+    return saturate(tex[(uint2)uv].r);
 }
 
 float4 SampleEmission(float2 uv, uint lightmapGroup)

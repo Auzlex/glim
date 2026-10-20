@@ -57,7 +57,7 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    pub main_uvs: Vec<Vector2>,
+    pub main_uvs: Vec<[f32; 4]>,
 
     pub transparent: bool,
     pub no_shadows: bool,
@@ -142,9 +142,14 @@ impl Mesh {
             self.vertices.push(vertex);
         }
 
-        self.main_uvs.extend(main_uvs);
+        self.main_uvs.reserve(index_count);
 
-        assert!(self.main_uvs.len() == self.vertices.len());
+        let alpha_id = 0 as f32;
+
+        for &idx in indices {
+            let uv = main_uvs[idx as usize];
+            self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
+        }
 
         match system {
             CoordinateSystem::Default => {
@@ -160,6 +165,8 @@ impl Mesh {
                 }
             }
         }
+
+        assert!(self.main_uvs.len() == self.indices.len());
     }
 
     pub fn merge_mesh(&mut self, mesh: &Mesh) {
