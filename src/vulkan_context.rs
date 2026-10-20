@@ -50,8 +50,8 @@ pub struct VulkanContext {
 
     pub as_device: Option<khr::acceleration_structure::Device>,
 
-    pub debug_utils_messanger: vk::DebugUtilsMessengerEXT,
-    pub debug_utils_instance: ash::ext::debug_utils::Instance,
+    pub debug_utils_messanger: Option<vk::DebugUtilsMessengerEXT>,
+    pub debug_utils_instance: Option<ash::ext::debug_utils::Instance>,
 }
 
 // thanks owlboy for the help
@@ -172,11 +172,16 @@ impl VulkanContext {
             vk::SurfaceKHR::null()
         };
 
-        let debug_utils_instance = ash::ext::debug_utils::Instance::new(&entry, &instance);
-        let debug_utils_messanger = unsafe {
-            debug_utils_instance
-                .create_debug_utils_messenger(&debug_create_info, None)
-                .unwrap()
+        let (debug_utils_instance, debug_utils_messanger) = if config.enable_validation_layers {
+            let debug_utils_instance = ash::ext::debug_utils::Instance::new(&entry, &instance);
+            let debug_utils_messanger = unsafe {
+                debug_utils_instance
+                    .create_debug_utils_messenger(&debug_create_info, None)
+                    .unwrap()
+            };
+            (Some(debug_utils_instance), Some(debug_utils_messanger))
+        } else {
+            (None, None)
         };
 
         let mut physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
@@ -661,8 +666,11 @@ impl Drop for VulkanContext {
 
             device.destroy_command_pool(self.command_pool, None);
 
-            self.debug_utils_instance
-                .destroy_debug_utils_messenger(self.debug_utils_messanger, None);
+            if let Some(instance) = &self.debug_utils_instance {
+                if let Some(debug_utils_messanger) = self.debug_utils_messanger {
+                    instance.destroy_debug_utils_messenger(debug_utils_messanger, None);
+                }
+            }
 
             if !self.surface.is_null() {
                 self.surface_instance.destroy_surface(self.surface, None);
