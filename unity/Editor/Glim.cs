@@ -651,13 +651,14 @@ namespace Glim
                 {
                     vertices = mesh.vertices,
                     normals = mesh.normals,
-                    uvs = mesh.uv,
+                    lightmapUVs = mesh.uv,
+                    mainUVs = mesh.uv,
                     indices = mesh.triangles,
                     groupIndex = groupIndex,
                     backfaceGI = false,
                     transparent = hasHoles ? true : false,
                     emissive = false,
-                    fixSeams = true
+                    fixSeams = false
                 };
                 sceneMesh.Add(meshData);
                 GameObject.DestroyImmediate(mesh);
@@ -870,7 +871,8 @@ namespace Glim
         {
             public Vector3[] vertices;
             public Vector3[] normals;
-            public Vector2[] uvs;
+            public Vector2[] lightmapUVs;
+            public Vector2[] mainUVs;
             public int[] indices;
             public uint groupIndex;
             public bool backfaceGI;
@@ -886,12 +888,14 @@ namespace Glim
 
             var vertices = new List<Vector3>();
             var normals = new List<Vector3>();
-            var uvs = new List<Vector2>();
+            var lightmapUVs = new List<Vector2>();
+            var mainUVs = new List<Vector2>();
             var indices = new List<int>();
 
             var localVertices = new List<Vector3>();
             var localNormals = new List<Vector3>();
-            var localUvs = new List<Vector2>();
+            var localLightmapUvs = new List<Vector2>();
+            var localMainUvs = new List<Vector2>();
             var localIndices = new List<int>();
             var remap = new Dictionary<int, int>();
 
@@ -922,12 +926,14 @@ namespace Glim
 
                 if (mesh.HasVertexAttribute(VertexAttribute.TexCoord1))
                 {
-                    mesh.GetUVs(1, uvs);
+                    mesh.GetUVs(1, lightmapUVs);
                 }
                 else
                 {
-                    mesh.GetUVs(0, uvs);
+                    mesh.GetUVs(0, lightmapUVs);
                 }
+
+                mesh.GetUVs(0, mainUVs);
 
                 var enlightenVertexStream = mr.enlightenVertexStream;
                 var additionalVertexStreams = mr.additionalVertexStreams;
@@ -935,14 +941,14 @@ namespace Glim
                 {
                     if (enlightenVertexStream.HasVertexAttribute(VertexAttribute.TexCoord1))
                     {
-                        enlightenVertexStream.GetUVs(1, uvs);
+                        enlightenVertexStream.GetUVs(1, lightmapUVs);
                     }
                 }
                 else if (additionalVertexStreams)
                 {
                     if (additionalVertexStreams.HasVertexAttribute(VertexAttribute.TexCoord1))
                     {
-                        additionalVertexStreams.GetUVs(1, uvs);
+                        additionalVertexStreams.GetUVs(1, lightmapUVs);
                     }
                 }
 
@@ -968,9 +974,9 @@ namespace Glim
                 Vector4 scaleOffset = mr.lightmapScaleOffset;
                 Vector2 scale = new(scaleOffset.x, scaleOffset.y);
                 Vector2 offset = new(scaleOffset.z, scaleOffset.w);
-                for (int uvIndex = 0; uvIndex < uvs.Count; uvIndex++)
+                for (int uvIndex = 0; uvIndex < lightmapUVs.Count; uvIndex++)
                 {
-                    uvs[uvIndex] = uvs[uvIndex] * scale + offset;
+                    lightmapUVs[uvIndex] = lightmapUVs[uvIndex] * scale + offset;
                 }
 
                 for (int submeshIndex = 0; submeshIndex < materials.Length; submeshIndex++)
@@ -1003,7 +1009,8 @@ namespace Glim
                     remap.Clear();
                     localVertices.Clear();
                     localNormals.Clear();
-                    localUvs.Clear();
+                    localLightmapUvs.Clear();
+                    localMainUvs.Clear();
                     localIndices.Clear();
                     localIndices.Capacity = indices.Count;
 
@@ -1018,18 +1025,24 @@ namespace Glim
 
                             localVertices.Add(vertices[globalIndex]);
                             localNormals.Add(normals[globalIndex]);
-                            localUvs.Add(uvs[globalIndex]);
+                            localLightmapUvs.Add(lightmapUVs[globalIndex]);
+                            localMainUvs.Add(mainUVs[globalIndex]);
                         }
 
                         localIndices.Add(localIndex);
                     }
 
+                    if (localMainUvs.Count != localLightmapUvs.Count)
+                    {
+                        throw new Exception($"uv0 Count != uv1 Count on mesh {mesh.name} GameObject {mr.name}");
+                    }
 
                     var data = new MeshData
                     {
                         vertices = localVertices.ToArray(),
                         normals = localNormals.ToArray(),
-                        uvs = localUvs.ToArray(),
+                        lightmapUVs = localLightmapUvs.ToArray(),
+                        mainUVs = localMainUvs.ToArray(),
                         indices = localIndices.ToArray(),
                         groupIndex = groupIndex,
                         backfaceGI = backfaceGI,

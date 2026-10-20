@@ -189,7 +189,8 @@ namespace Glim
         {
             public Vector3* vertices;
             public Vector3* normals;
-            public Vector2* uvs;
+            public Vector2* lightmapUVs;
+            public Vector2* mainUVs;
             public uint* indices;
 
             public uint vertices_length;

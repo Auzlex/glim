@@ -701,18 +701,22 @@ namespace Glim
                     {
                         var data = ctx.sceneMesh[i];
 
+                        Debug.Assert(data.lightmapUVs.Length == data.mainUVs.Length);
+
                         unsafe
                         {
                             fixed (Vector3* vPtr = data.vertices)
                             fixed (Vector3* nPtr = data.normals)
-                            fixed (Vector2* uPtr = data.uvs)
+                            fixed (Vector2* lmuvPtr = data.lightmapUVs)
+                            fixed (Vector2* mainuvPtr = data.mainUVs)
                             fixed (int* iPtr = data.indices)
                             {
                                 var exportedMesh = new Bindings.Mesh
                                 {
                                     vertices = vPtr,
                                     normals = nPtr,
-                                    uvs = uPtr,
+                                    lightmapUVs = lmuvPtr,
+                                    mainUVs = mainuvPtr,
                                     indices = (uint*)iPtr,
                                     vertices_length = (uint)data.vertices.Length,
                                     indices_length = (uint)data.indices.Length,
