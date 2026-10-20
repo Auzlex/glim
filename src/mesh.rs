@@ -83,16 +83,6 @@ pub fn encode_normal_octahedron(n: Vector3) -> Vector2 {
 }
 
 impl Mesh {
-    pub fn empty() -> Self {
-        Self {
-            vertices: Vec::new(),
-            indices: Vec::new(),
-            uv0: Vec::new(),
-            transparent: false,
-            no_shadows: false,
-        }
-    }
-
     pub fn append_ffi_mesh(
         &mut self,
         mesh: FfiMesh,
