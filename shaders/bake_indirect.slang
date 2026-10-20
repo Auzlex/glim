@@ -33,8 +33,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
     uint bounceIndex = Push.bounceIndex;
     float sampleScale = 1.0 / float(sampleCount);
 
-    SamplingPattern pattern = SamplingPattern::SobolBurley;
-    uint sobolIndexMask = IndexMaskForCount(Push.maxSamples);
+    uint sobolIndexMask = ~0u;
+
+    SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
     uint pixelSeed = RNGPixelInit1D(index);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 

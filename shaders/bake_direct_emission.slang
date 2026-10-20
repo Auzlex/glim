@@ -32,9 +32,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
     uint sampleCount = Push.maxSamples;
     float sampleScale = 1.0 / float(sampleCount);
 
-    SamplingPattern pattern = SamplingPattern::SobolBurley;
-    uint sobolIndexMask = IndexMaskForCount(Push.maxSamples);
+    SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
     uint pixelSeed = RNGPixelInit1D(index);
+    uint sobolIndexMask = ~0u;
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 
     float4 color = float4(0.0, 0.0, 0.0, 1.0);
