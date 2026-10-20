@@ -18,7 +18,8 @@ pub const GEOMETRIES_VARIANTS: usize = 4;
 pub struct FfiMesh {
     pub vertices: *const Vector3,
     pub normals: *const Vector3,
-    pub uvs: *const Vector2,
+    pub lightmap_uvs: *const Vector2,
+    pub main_uvs: *const Vector2,
     pub indices: *const u32,
     pub vertices_length: u32,
     pub indices_length: u32,
@@ -56,6 +57,7 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub uv0: Vec<Vector2>, // used for transparency
 
     pub transparent: bool,
     pub no_shadows: bool,
@@ -81,6 +83,16 @@ pub fn encode_normal_octahedron(n: Vector3) -> Vector2 {
 }
 
 impl Mesh {
+    pub fn empty() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+            uv0: Vec::new(),
+            transparent: false,
+            no_shadows: false,
+        }
+    }
+
     pub fn append_ffi_mesh(
         &mut self,
         mesh: FfiMesh,
@@ -88,11 +100,14 @@ impl Mesh {
         fix_seams: bool,
         emissive: bool,
     ) {
-        let positions =
-            unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
-        let normals = unsafe { slice::from_raw_parts(mesh.normals, mesh.vertices_length as usize) };
-        let uvs = unsafe { slice::from_raw_parts(mesh.uvs, mesh.vertices_length as usize) };
-        let indices = unsafe { slice::from_raw_parts(mesh.indices, mesh.indices_length as usize) };
+        let vertex_count = mesh.vertices_length as usize;
+        let index_count = mesh.indices_length as usize;
+
+        let indices = unsafe { slice::from_raw_parts(mesh.indices, index_count) };
+        let positions = unsafe { slice::from_raw_parts(mesh.vertices, vertex_count) };
+        let normals = unsafe { slice::from_raw_parts(mesh.normals, vertex_count) };
+        let lightmap_uvs = unsafe { slice::from_raw_parts(mesh.lightmap_uvs, vertex_count) };
+        let main_uvs = unsafe { slice::from_raw_parts(mesh.main_uvs, vertex_count) };
 
         // let sample_scale = 20.0;
         let unity = system == CoordinateSystem::Unity;
@@ -102,9 +117,9 @@ impl Mesh {
         let lightmap_group = mesh.lightmap_group;
         let backface_gi = mesh.backface_gi;
 
-        self.vertices.reserve(positions.len());
+        self.vertices.reserve(vertex_count);
 
-        for i in 0..positions.len() {
+        for i in 0..vertex_count {
             let mut normal = normals[i];
             normal.transform_space(system);
 
@@ -120,7 +135,7 @@ impl Mesh {
                 flags |= 1 << 18;
             }
 
-            let mut uv = uvs[i];
+            let mut uv = lightmap_uvs[i];
             if unity {
                 uv.y = 1.0 - uv.y;
             }
@@ -136,6 +151,10 @@ impl Mesh {
 
             self.vertices.push(vertex);
         }
+
+        self.uv0.extend(main_uvs);
+
+        assert!(self.uv0.len() == self.vertices.len());
 
         match system {
             CoordinateSystem::Default => {
@@ -157,6 +176,7 @@ impl Mesh {
         let offset = self.vertices.len() as u32;
 
         self.vertices.extend(&mesh.vertices);
+        self.uv0.extend(&mesh.uv0);
         self.indices.extend(mesh.indices.iter().map(|i| i + offset));
     }
 }

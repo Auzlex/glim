@@ -1264,32 +1264,7 @@ impl Glim {
 
         let linear_sampler = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
-        let meshes = [
-            Mesh {
-                vertices: Vec::new(),
-                indices: Vec::new(),
-                transparent: false,
-                no_shadows: false,
-            },
-            Mesh {
-                vertices: Vec::new(),
-                indices: Vec::new(),
-                transparent: true,
-                no_shadows: false,
-            },
-            Mesh {
-                vertices: Vec::new(),
-                indices: Vec::new(),
-                transparent: false,
-                no_shadows: true,
-            },
-            Mesh {
-                vertices: Vec::new(),
-                indices: Vec::new(),
-                transparent: true,
-                no_shadows: true,
-            },
-        ];
+        let meshes = [Mesh::empty(), Mesh::empty(), Mesh::empty(), Mesh::empty()];
 
         Self {
             vk,
