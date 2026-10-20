@@ -57,7 +57,7 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    pub uv0: Vec<Vector2>, // used for transparency
+    pub main_uvs: Vec<Vector2>,
 
     pub transparent: bool,
     pub no_shadows: bool,
@@ -142,9 +142,9 @@ impl Mesh {
             self.vertices.push(vertex);
         }
 
-        self.uv0.extend(main_uvs);
+        self.main_uvs.extend(main_uvs);
 
-        assert!(self.uv0.len() == self.vertices.len());
+        assert!(self.main_uvs.len() == self.vertices.len());
 
         match system {
             CoordinateSystem::Default => {
@@ -166,7 +166,7 @@ impl Mesh {
         let offset = self.vertices.len() as u32;
 
         self.vertices.extend(&mesh.vertices);
-        self.uv0.extend(&mesh.uv0);
+        self.main_uvs.extend(&mesh.main_uvs);
         self.indices.extend(mesh.indices.iter().map(|i| i + offset));
     }
 }
@@ -223,6 +223,7 @@ pub enum AccelerationStructureType {
 pub struct GpuMesh {
     pub vertex_buffer: Buffer,
     pub index_buffer: Buffer,
+    pub main_uv_buffer: Buffer,
 
     pub acceleration_structure: AccelerationStructureType,
 
@@ -288,6 +289,13 @@ impl GpuMesh {
             vk,
             String::from("Index"),
             &merged_mesh.indices,
+            usage,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        );
+        let main_uv_buffer = Buffer::new(
+            vk,
+            String::from("UV0"),
+            &merged_mesh.main_uvs,
             usage,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
         );
@@ -357,6 +365,7 @@ impl GpuMesh {
             index_buffer,
             acceleration_structure: bvh,
             index_len: merged_mesh.indices.len() as u32,
+            main_uv_buffer,
         }
     }
 
@@ -598,6 +607,7 @@ impl GpuMesh {
             vertex_buffer: Buffer::null(),
             index_buffer: Buffer::null(),
             index_len: 0,
+            main_uv_buffer: Buffer::null(),
         }
     }
 
@@ -612,6 +622,9 @@ impl GpuMesh {
 
         self.index_buffer.destroy(vk);
         self.vertex_buffer.destroy(vk);
+        self.main_uv_buffer.destroy(vk);
+
+        *self = Self::null();
     }
 }
 

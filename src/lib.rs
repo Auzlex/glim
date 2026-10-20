@@ -506,6 +506,7 @@ fn initialize_render(app: &mut Glim) {
         geometries_1_offset: geometries_offsets[1],
         geometries_2_offset: geometries_offsets[2],
         geometries_3_offset: geometries_offsets[3],
+        main_uv_address: app.gpu_mesh.main_uv_buffer.gpu_address,
     };
 
     if app.config.is_preview {
@@ -1268,28 +1269,28 @@ impl Glim {
             Mesh {
                 vertices: Vec::new(),
                 indices: Vec::new(),
-                uv0: Vec::new(),
+                main_uvs: Vec::new(),
                 transparent: false,
                 no_shadows: false,
             },
             Mesh {
                 vertices: Vec::new(),
                 indices: Vec::new(),
-                uv0: Vec::new(),
+                main_uvs: Vec::new(),
                 transparent: true,
                 no_shadows: false,
             },
             Mesh {
                 vertices: Vec::new(),
                 indices: Vec::new(),
-                uv0: Vec::new(),
+                main_uvs: Vec::new(),
                 transparent: false,
                 no_shadows: true,
             },
             Mesh {
                 vertices: Vec::new(),
                 indices: Vec::new(),
-                uv0: Vec::new(),
+                main_uvs: Vec::new(),
                 transparent: true,
                 no_shadows: true,
             },

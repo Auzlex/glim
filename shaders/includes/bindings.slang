@@ -106,6 +106,8 @@ const uint GEOMETRIES_2_OFFSET;
 [vk::constant_id(37)]
 const uint GEOMETRIES_3_OFFSET;
 
+DECLARE_CONST_PTR(MainUVs, float2, 38)
+
 enum LightmapMode : uint
 {
     NonDirectional = 0,

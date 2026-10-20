@@ -112,6 +112,7 @@ pub struct SpecializationConstants {
 
     pub geometries_2_offset: u32, // 36
     pub geometries_3_offset: u32, // 37
+    pub main_uv_address: u64,     // 38 39
 }
 
 pub const SPECIALIZATION_MAP_ENTRIES_LEN: usize =
