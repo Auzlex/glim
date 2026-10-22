@@ -822,6 +822,11 @@ namespace Glim
                 return false;
             }
 
+            if (gameObject.transform is RectTransform)
+            {
+                return false;
+            }
+
             if (renderer.scaleInLightmap == 0)
             {
                 Debug.LogWarning($"Scale In Lightmap 0 not supported <a href=\"https://github.com/z3y/glim/issues/19\">(Read Issue #19)</a> GameObject {renderer.name} will not be baked.", renderer.gameObject);
@@ -986,6 +991,14 @@ namespace Glim
                         continue;
                     }
 
+                    var topology = mesh.GetTopology(submeshIndex);
+                    if (topology != MeshTopology.Triangles)
+                    {
+                        Debug.LogError($"GameObject {mr.name} with Mesh {mesh.name}     topology != MeshTopology.Triangles", mr.gameObject);
+                        continue;
+                        // todo Quads
+                    }
+
                     bool backfaceGI = material.doubleSidedGI;
                     bool transparent = MetaTexture.IsMaterialTransparent(material);
                     bool emissive = MetaTexture.IsMaterialEmissive(material);
@@ -1025,6 +1038,14 @@ namespace Glim
                     }
 
 
+                    if (localVertices.Count != localNormals.Count ||
+                        localVertices.Count != localUvs.Count ||
+                        localIndices.Count % 3 != 0)
+                    {
+                        Debug.LogError($"GameObject {mr.name} with Mesh {mesh.name} has an invalid mesh.", mr.gameObject);
+                        continue;
+                    }
+
                     var data = new MeshData
                     {
                         vertices = localVertices.ToArray(),
@@ -1040,7 +1061,6 @@ namespace Glim
                     };
 
                     datas.Add(data);
-
                 }
             }
 
