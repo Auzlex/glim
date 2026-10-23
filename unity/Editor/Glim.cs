@@ -1128,6 +1128,16 @@ namespace Glim
                         alphaTexture = MetaTexture.GetMaterialAlpha(material);
                     }
 
+                    if (alphaTexture != null)
+                    {
+                        Vector2 tiling = material.mainTextureScale;
+                        Vector2 tilingOffset = material.mainTextureOffset;
+                        for (int j = 0; j < localMainUvs.Count; j++)
+                        {
+                            localMainUvs[j] = localMainUvs[j] * tiling + tilingOffset;
+                        }
+                    }
+
                     var data = new MeshData
                     {
                         vertices = localVertices.ToArray(),

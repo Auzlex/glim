@@ -148,22 +148,25 @@ impl Mesh {
 
         let alpha_id = mesh.alpha_index as f32;
 
-        for &idx in indices {
-            let uv = main_uvs[idx as usize];
-            self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
-        }
-
         match system {
             CoordinateSystem::Default => {
+                for &idx in indices {
+                    let uv = main_uvs[idx as usize];
+                    self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
+                }
                 self.indices.extend(indices.iter().map(|i| i + offset));
             }
             CoordinateSystem::Unity => {
                 self.indices.reserve(indices.len());
 
                 for triangle in indices.chunks(3) {
-                    self.indices.push(triangle[0] + offset);
-                    self.indices.push(triangle[2] + offset);
-                    self.indices.push(triangle[1] + offset);
+                    // same order as the index buffer: 0, 2, 1
+                    for &k in &[0usize, 2, 1] {
+                        let idx = triangle[k];
+                        let uv = main_uvs[idx as usize];
+                        self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
+                        self.indices.push(idx + offset);
+                    }
                 }
             }
         }
