@@ -6,6 +6,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
@@ -81,9 +82,16 @@ namespace Glim
         public Vector3Int resolution;
     }
 
-    public struct LightCookieData
+    public struct CookiePixelsData
     {
         public Color32[] pixels;
+        public uint width;
+        public uint height;
+    }
+
+    public struct AlphaPixelsData
+    {
+        public float[] pixels;
         public uint width;
         public uint height;
     }
@@ -91,7 +99,8 @@ namespace Glim
     public class BakeContext
     {
         public List<Bindings.Light> bakeLights = new();
-        public List<LightCookieData> cookies = new();
+        public List<CookiePixelsData> cookies = new();
+        public List<AlphaPixelsData> alphas = new();
         public List<Glim.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
 
@@ -313,7 +322,7 @@ namespace Glim
                 if (cookie is Texture2D tex)
                 {
                     var pixels = GetPixels32(tex);
-                    cookies.Add(new LightCookieData()
+                    cookies.Add(new CookiePixelsData()
                     {
                         pixels = pixels,
                         width = (uint)tex.width,
@@ -323,7 +332,7 @@ namespace Glim
                 else if (cookie is Cubemap cube)
                 {
                     var pixels = CubemapToOctahedralPixels(cube, out int size);
-                    cookies.Add(new LightCookieData
+                    cookies.Add(new CookiePixelsData
                     {
                         pixels = pixels,
                         width = (uint)size,
@@ -692,6 +701,34 @@ namespace Glim
                 groupIndex++;
             }
 
+            List<Texture2D> alphaTextures = new();
+            var alphaLookup = new Dictionary<Texture2D, int>();
+            foreach (var mesh in sceneMesh)
+            {
+                if (!mesh.alphaTexture)
+                {
+                    mesh.alphaTextureIndex = -1;
+                    continue;
+                }
+
+                if (!alphaLookup.TryGetValue(mesh.alphaTexture, out int index))
+                {
+                    index = alphaTextures.Count;
+                    alphaLookup[mesh.alphaTexture] = index;
+                    alphaTextures.Add(mesh.alphaTexture);
+
+                    alphas.Add(new AlphaPixelsData
+                    {
+                        pixels = GetAlphaPixels(mesh.alphaTexture),
+                        width = (uint)mesh.alphaTexture.width,
+                        height = (uint)mesh.alphaTexture.height,
+                    });
+                }
+
+                mesh.alphaTextureIndex = index;
+                mesh.alphaTexture = null; // drop the reference, only the index is needed from here on
+            }
+
 
             if (groupIndex <= 0)
             {
@@ -759,6 +796,44 @@ namespace Glim
             RenderTexture.ReleaseTemporary(render_texture);
 
             return pixels;
+        }
+
+        // Keeps only the last channel: 1 comp -> R, 2 -> G, 4 -> A.
+        // 3 comps (RGB) has no alpha, so it returns 1.0 (opaque). Change that case if you'd rather take B.
+        public static float[] GetAlphaPixels(Texture2D texture)
+        {
+            int components = (int)GraphicsFormatUtility.GetComponentCount(texture.graphicsFormat);
+            bool alpha8 = texture.format == TextureFormat.Alpha8; // samples as (1,1,1,a), so read .a
+
+            Color[] pixels;
+            if (texture.isReadable)
+            {
+                pixels = texture.GetPixels();
+            }
+            else
+            {
+                var rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                Graphics.Blit(texture, rt);
+
+                var previous = RenderTexture.active;
+                RenderTexture.active = rt;
+
+                var readable = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+                readable.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+                pixels = readable.GetPixels();
+
+                Object.DestroyImmediate(readable);
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+
+            var result = new float[pixels.Length];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                var p = pixels[i];
+                result[i] = (alpha8 || components == 4) ? p.a : 1.0f;
+            }
+            return result;
         }
 
         static Material cubeToOctahedralMat;
@@ -880,6 +955,9 @@ namespace Glim
             public bool emissive;
             public bool fixSeams;
             public bool noShadows;
+
+            public Texture2D alphaTexture;
+            public int alphaTextureIndex = -1;
         }
 
         public static List<MeshData> ExtractMeshData(Renderer[] renderers, uint groupIndex)
@@ -992,6 +1070,14 @@ namespace Glim
                         continue;
                     }
 
+                    var topology = mesh.GetTopology(submeshIndex);
+                    if (topology != MeshTopology.Triangles)
+                    {
+                        Debug.LogError($"GameObject {mr.name} Mesh {mesh.name} topology != MeshTopology.Triangles", mr.gameObject);
+                        continue;
+                        // todo Quads
+                    }
+
                     bool backfaceGI = material.doubleSidedGI;
                     bool transparent = MetaTexture.IsMaterialTransparent(material);
                     bool emissive = MetaTexture.IsMaterialEmissive(material);
@@ -1036,6 +1122,11 @@ namespace Glim
                     {
                         throw new Exception($"uv0 Count != uv1 Count on mesh {mesh.name} GameObject {mr.name}");
                     }
+                    Texture2D alphaTexture = null;
+                    if (MetaTexture.IsMaterialTransparent(material))
+                    {
+                        alphaTexture = MetaTexture.GetMaterialAlpha(material);
+                    }
 
                     var data = new MeshData
                     {
@@ -1049,7 +1140,8 @@ namespace Glim
                         transparent = transparent,
                         emissive = emissive,
                         fixSeams = fixSeams,
-                        noShadows = mr.shadowCastingMode == ShadowCastingMode.Off
+                        noShadows = mr.shadowCastingMode == ShadowCastingMode.Off,
+                        alphaTexture = alphaTexture,
                     };
 
                     datas.Add(data);

@@ -762,7 +762,7 @@ namespace Glim
 
                     for (int i = 0; i < ctx.cookies.Count; i++)
                     {
-                        LightCookieData cookie = ctx.cookies[i];
+                        CookiePixelsData cookie = ctx.cookies[i];
 
                         unsafe
                         {
@@ -772,7 +772,23 @@ namespace Glim
                             }
                         }
 
-                        // todo clear
+                        cookie.pixels = new Color32[0];
+                        ctx.cookies[i] = cookie;
+                    }
+
+                    for (int i = 0; i < ctx.alphas.Count; i++)
+                    {
+                        var a = ctx.alphas[i];
+
+                        unsafe
+                        {
+                            fixed (float* pixels = a.pixels)
+                            {
+                                Bindings.app_add_alpha_texture(app, pixels, (uint)a.pixels.Length, a.width, a.height);
+                            }
+                        }
+                        a.pixels = new float[0];
+                        ctx.alphas[i] = a;
                     }
 
                     foreach (var position in ctx.probePositions)

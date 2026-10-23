@@ -359,6 +359,30 @@ pub extern "C" fn app_add_light_cookie(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn app_add_alpha_texture(
+    app: *mut Glim,
+    pixels: *const u8,
+    pixels_length: u32,
+    width: u32,
+    height: u32,
+) {
+    if app.is_null() {
+        return;
+    }
+
+    let app = unsafe { &mut *app };
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let pixels = unsafe { slice::from_raw_parts(pixels, pixels_length as usize) };
+        app.add_alpha_texture(pixels, width, height);
+    }));
+
+    if let Err(err) = result {
+        handle_unwind_error(app.config.log_callback, err);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn app_run(app: *mut Glim) {
     if app.is_null() {
         return;

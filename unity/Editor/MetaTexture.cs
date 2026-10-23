@@ -95,7 +95,7 @@ namespace Glim
             return Color.white;
         }
 
-        Texture GetMaterialAlbedo(Material mat)
+        static Texture GetMaterialAlbedo(Material mat)
         {
             if (mat.HasProperty(_MainTex))
             {
@@ -105,6 +105,24 @@ namespace Glim
             {
                 return mat.GetTexture(_BaseMap);
             }
+            return Texture2D.whiteTexture;
+        }
+
+        public static Texture2D GetMaterialAlpha(Material mat)
+        {
+            Texture tex = GetMaterialAlbedo(mat);
+
+            if (tex is Texture2D tex2d)
+            {
+                int components = (int)GraphicsFormatUtility.GetComponentCount(tex2d.graphicsFormat);
+                bool alpha8 = tex2d.format == TextureFormat.Alpha8;
+
+                if (alpha8 || components == 4)
+                {
+                    return tex2d;
+                }
+            }
+
             return Texture2D.whiteTexture;
         }
 

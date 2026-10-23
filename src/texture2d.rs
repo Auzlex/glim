@@ -161,7 +161,8 @@ impl Texture2D {
             vk::Format::R32G32B32A32_SFLOAT => std::mem::size_of::<f32>() * 4,
             vk::Format::R8G8B8A8_UNORM => std::mem::size_of::<u8>() * 4,
             vk::Format::B10G11R11_UFLOAT_PACK32 => std::mem::size_of::<u8>() * 4,
-            _ => unreachable!(),
+            vk::Format::R8_UNORM => std::mem::size_of::<u8>(),
+            _ => panic!("Unimplemented texture format"),
         } as u64;
 
         size
@@ -269,22 +270,30 @@ impl Texture2D {
     //     };
     // }
 
-    // only 4 channel f32 or u8 textures
+    // 1 channel (R8) or 4 channel (RGBA8 / RGBA32F) textures
     pub fn set_pixels<T: Copy>(&mut self, vk: &VulkanContext, pixels: &[T], staging: &Buffer) {
-        assert!(pixels.len() as u32 == self.width * self.height * 4);
+        let texel_count = (self.width as usize) * (self.height as usize);
+        assert!(texel_count > 0, "image has zero size");
+        assert!(
+            pixels.len() % texel_count == 0,
+            "pixel slice length is not a multiple of width * height"
+        );
+
+        // elements of T per texel: 1 for R8, 4 for RGBA
+        let channels = pixels.len() / texel_count;
+        assert!(
+            channels == 1 || channels == 4,
+            "only 1 or 4 channel textures are supported (got {channels})"
+        );
         assert!(
             (std::mem::size_of::<T>() as u64) * (pixels.len() as u64) == self.get_device_size(),
             "pixel type size doesn't match image format"
         );
 
-        // let start_time = std::time::Instant::now();
-
         let staging_buffer = staging.buffer;
-
         let ptr = staging.ptr as *mut T;
-        let pixels = pixels.as_ptr() as *const T;
+        let pixels = pixels.as_ptr();
 
-        let channels = 4;
         let elements_per_row = (self.width as usize) * channels;
         let rows_per_chunk =
             ((staging.bytes as usize) / (elements_per_row * std::mem::size_of::<T>())) as u32;
@@ -298,13 +307,11 @@ impl Texture2D {
 
         while current_y < self.height {
             let chunk_height = std::cmp::min(rows_per_chunk, self.height - current_y);
-            let chunk_pixel_count = (self.width * chunk_height * 4) as usize;
+            let chunk_element_count = (chunk_height as usize) * elements_per_row;
 
             unsafe {
-                let src_offset = (current_y * self.width * 4) as usize;
-                // let dst_ptr = ptr.add((current_y * self.width * 4) as usize);
-
-                ptr::copy_nonoverlapping(pixels.add(src_offset), ptr, chunk_pixel_count);
+                let src_offset = (current_y as usize) * elements_per_row;
+                ptr::copy_nonoverlapping(pixels.add(src_offset), ptr, chunk_element_count);
             }
 
             let cmd = vk.begin_single_use_cmd();
@@ -338,7 +345,7 @@ impl Texture2D {
 
             let region = vk::BufferImageCopy {
                 buffer_offset: 0,
-                buffer_row_length: 0,
+                buffer_row_length: 0, // tightly packed, works for any channel count
                 buffer_image_height: 0,
                 image_subresource,
                 image_offset: vk::Offset3D {
@@ -391,8 +398,6 @@ impl Texture2D {
         }
 
         vk.end_single_use_cmd(cmd);
-
-        // println!("set pixels in {}s", start_time.elapsed().as_secs_f32());
     }
 
     pub fn read_pixels(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>, staging: &Buffer) {

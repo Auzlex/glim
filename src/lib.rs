@@ -84,7 +84,8 @@ pub struct Glim {
     pub meshes: [Mesh; GEOMETRIES_VARIANTS],
 
     pub cpu_lights: Vec<Light>,
-    pub light_cookies: Vec<LightCookie>,
+    pub light_cookies: Vec<TexturePixelsData>,
+    pub alphas: Vec<TexturePixelsData>,
     pub emissive_triangles: Vec<u32>,
     pub groups: Vec<LightmapGroup>,
     pub seams: Vec<Seam>,
@@ -118,6 +119,7 @@ pub struct Glim {
     pub albedo_array: TextureArray,
     pub emission_array: TextureArray,
     pub cookie_array: TextureArray,
+    pub alphas_array: TextureArray,
 
     pub linear_sampler: vk::Sampler,
     pub window_title: String,
@@ -128,6 +130,7 @@ impl Drop for Glim {
         self.albedo_array.destroy(&self.vk);
         self.emission_array.destroy(&self.vk);
         self.cookie_array.destroy(&self.vk);
+        self.alphas_array.destroy(&self.vk);
 
         unsafe { self.vk.device.destroy_sampler(self.linear_sampler, None) };
 
@@ -179,7 +182,7 @@ pub struct RenderTarget {
     diffuse: Texture2D,
 }
 
-pub struct LightCookie {
+pub struct TexturePixelsData {
     pub pixels: Vec<u8>,
     pub width: u32,
     pub height: u32,
@@ -427,42 +430,65 @@ fn initialize_render(app: &mut Glim) {
     app.emission_array = emission_array;
 
     if app.light_cookies.len() == 0 {
-        let dummy_cookie = LightCookie {
+        let dummy_cookie = TexturePixelsData {
             pixels: vec![0u8; 16],
             width: 2,
             height: 2,
         };
         app.light_cookies.push(dummy_cookie);
     }
+    let mut cookies = Vec::with_capacity(app.light_cookies.len());
+    for (index, cookie) in app.light_cookies.iter().enumerate() {
+        let desc = TextureDescriptor {
+            width: cookie.width,
+            height: cookie.height,
+            format: vk::Format::R8G8B8A8_UNORM,
+            usage: vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST,
+            name: format!("Cookie {}", index),
+        };
+        cookies.push(desc);
+    }
+    let mut cookie_array = TextureArray::new(&app.vk, cookies);
+    for (index, cookie) in app.light_cookies.iter().enumerate() {
+        cookie_array.textures[index].set_pixels(&app.vk, &cookie.pixels, &staging_buffer);
+    }
+    app.cookie_array = cookie_array;
+    // free
+    for cookie in &mut app.light_cookies {
+        cookie.pixels = Vec::new();
+    }
 
-    if app.light_cookies.len() > 0 {
-        let mut cookies = Vec::with_capacity(app.light_cookies.len());
-
-        for (index, cookie) in app.light_cookies.iter().enumerate() {
-            let desc = TextureDescriptor {
-                width: cookie.width,
-                height: cookie.height,
-                format: vk::Format::R8G8B8A8_UNORM,
-                usage: vk::ImageUsageFlags::SAMPLED
-                    | vk::ImageUsageFlags::TRANSFER_SRC
-                    | vk::ImageUsageFlags::TRANSFER_DST,
-                name: format!("Cookie {}", index),
-            };
-            cookies.push(desc);
-        }
-
-        let mut cookie_array = TextureArray::new(&app.vk, cookies);
-
-        for (index, cookie) in app.light_cookies.iter().enumerate() {
-            cookie_array.textures[index].set_pixels(&app.vk, &cookie.pixels, &staging_buffer);
-        }
-
-        app.cookie_array = cookie_array;
-
-        // free
-        for cookie in &mut app.light_cookies {
-            cookie.pixels = Vec::new();
-        }
+    if app.alphas.len() == 0 {
+        let dummy_alpha = TexturePixelsData {
+            pixels: vec![0u8; 4],
+            width: 2,
+            height: 2,
+        };
+        app.alphas.push(dummy_alpha);
+    }
+    let mut alphas = Vec::with_capacity(app.alphas.len());
+    for (index, alpha) in app.alphas.iter().enumerate() {
+        let desc = TextureDescriptor {
+            width: alpha.width,
+            height: alpha.height,
+            format: vk::Format::R8_UNORM,
+            usage: vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST,
+            name: format!("Alpha {}", index),
+        };
+        alphas.push(desc);
+    }
+    let mut alphas_array = TextureArray::new(&app.vk, alphas);
+    for (index, alpha) in app.alphas.iter().enumerate() {
+        alphas_array.textures[index].set_pixels(&app.vk, &alpha.pixels, &staging_buffer);
+    }
+    app.alphas_array = alphas_array;
+    // free
+    for a in &mut app.alphas {
+        a.pixels = Vec::new();
     }
 
     staging_buffer.destroy(&app.vk);
@@ -1327,17 +1353,29 @@ impl Glim {
             cookie_array: TextureArray::null(),
             linear_sampler,
             window_title,
+            alphas: Vec::new(),
+            alphas_array: TextureArray::null(),
         }
     }
 
     pub fn add_light_cookie(&mut self, pixels: &[u8], width: u32, height: u32) {
-        let cookie = LightCookie {
+        let cookie = TexturePixelsData {
             pixels: pixels.to_owned(),
             width,
             height,
         };
 
         self.light_cookies.push(cookie);
+    }
+
+    pub fn add_alpha_texture(&mut self, pixels: &[u8], width: u32, height: u32) {
+        let alpha = TexturePixelsData {
+            pixels: pixels.to_owned(),
+            width,
+            height,
+        };
+
+        self.alphas.push(alpha);
     }
 }
 
