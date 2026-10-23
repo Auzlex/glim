@@ -665,9 +665,12 @@ namespace Glim
                     indices = mesh.triangles,
                     groupIndex = groupIndex,
                     backfaceGI = false,
-                    transparent = hasHoles ? true : false,
+                    transparent = hasHoles,
                     emissive = false,
-                    fixSeams = false
+                    fixSeams = false,
+                    alphaTexture = data.holesTexture,
+                    alphaWrap = false,
+                    cutoff = 0.5f,
                 };
                 sceneMesh.Add(meshData);
                 GameObject.DestroyImmediate(mesh);
@@ -701,8 +704,8 @@ namespace Glim
                 groupIndex++;
             }
 
-            List<Texture2D> alphaTextures = new();
-            var alphaLookup = new Dictionary<Texture2D, int>();
+            List<Texture> alphaTextures = new();
+            var alphaLookup = new Dictionary<Texture, int>();
             foreach (var mesh in sceneMesh)
             {
                 if (!mesh.alphaTexture)
@@ -799,19 +802,21 @@ namespace Glim
         }
 
         // Keeps only the last channel: 1 comp -> R, 2 -> G, 4 -> A.
-        // 3 comps (RGB) has no alpha, so it returns 1.0 (opaque). Change that case if you'd rather take B.
-        public static byte[] GetAlphaPixels(Texture2D texture)
+        // 3 comps (RGB) has no alpha, so it returns 1.0 (opaque).
+        // Accepts RenderTexture too (e.g. terrain holes, R8 unorm where 1 = solid, 0 = hole).
+        public static byte[] GetAlphaPixels(Texture texture)
         {
             int components = (int)GraphicsFormatUtility.GetComponentCount(texture.graphicsFormat);
-            bool alpha8 = texture.format == TextureFormat.Alpha8; // samples as (1,1,1,a), so read .a
+            bool alpha8 = texture is Texture2D t2 && t2.format == TextureFormat.Alpha8; // samples as (1,1,1,a)
 
             Color[] pixels;
-            if (texture.isReadable)
+            if (texture is Texture2D { isReadable: true } readableTex)
             {
-                pixels = texture.GetPixels();
+                pixels = readableTex.GetPixels();
             }
             else
             {
+                // RenderTexture or non-readable Texture2D: blit to a float RT and read back
                 var rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
                 Graphics.Blit(texture, rt);
 
@@ -830,7 +835,15 @@ namespace Glim
             var result = new byte[pixels.Length];
             for (int i = 0; i < pixels.Length; i++)
             {
-                float a = (alpha8 || components == 4) ? pixels[i].a : 1.0f;
+                float a;
+                if (alpha8) a = pixels[i].a;
+                else switch (components)
+                    {
+                        case 1: a = pixels[i].r; break;
+                        case 2: a = pixels[i].g; break;
+                        case 4: a = pixels[i].a; break;
+                        default: a = 1.0f; break;
+                    }
                 result[i] = (byte)Mathf.RoundToInt(Mathf.Clamp01(a) * 255f);
             }
             return result;
@@ -956,7 +969,7 @@ namespace Glim
             public bool fixSeams;
             public bool noShadows;
 
-            public Texture2D alphaTexture;
+            public Texture alphaTexture;
             public int alphaTextureIndex = -1;
             public bool alphaWrap;
             public float cutoff;
