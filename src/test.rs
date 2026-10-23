@@ -344,6 +344,7 @@ mod tests {
                     fix_seams: true,
                     transparent,
                     no_shadows,
+                    alpha_index: -1,
                 };
                 app_add_mesh(app, mesh);
             }

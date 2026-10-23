@@ -125,11 +125,20 @@ float4 SampleAlbedo(float2 uv, uint lightmapGroup)
     return saturate(tex[(uint2)uv]);
 }
 
-float SampleAlpha(float2 uv, uint alphaIndex)
+float SampleAlpha(float2 uv, uint alphaIndex, bool wrapUV)
 {
     uint index = NonUniformResourceIndex(alphaIndex);
     Texture2D<float> tex = Alphas[index];
-    return saturate(tex[(uint2)uv].r);
+
+    uint width, height;
+    tex.GetDimensions(width, height);
+    float2 res = float2(width, height);
+
+    uv = wrapUV ? frac(uv) : saturate(uv);
+
+    uint2 texel = min((uint2)(uv * res), uint2(width - 1, height - 1));
+
+    return saturate(tex[texel].r);
 }
 
 float4 SampleEmission(float2 uv, uint lightmapGroup)

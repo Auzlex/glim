@@ -49,6 +49,7 @@ pub struct ShaderBindings<'a> {
     pub albedos: &'a [vk::ImageView],
     pub emissions: &'a [vk::ImageView],
     pub cookies: &'a [vk::ImageView],
+    pub alphas: &'a [vk::ImageView],
     pub skybox: vk::ImageView,
     pub skybox_sampler: vk::Sampler,
     pub visibility: vk::ImageView,
@@ -67,6 +68,7 @@ impl<'a> Default for ShaderBindings<'a> {
             visibility: vk::ImageView::null(),
             preview_diffuse: vk::ImageView::null(),
             cookies: &[],
+            alphas: &[],
             linear_sampler: vk::Sampler::null(),
         }
     }
@@ -148,6 +150,7 @@ impl ShaderBindingID {
     pub const EMISSIONS: u32 = 5;
     pub const ALBEDOS: u32 = 3;
     pub const COOKIES: u32 = 6;
+    pub const ALPHAS: u32 = 8;
     pub const SKYBOX: u32 = 20;
     pub const SKYBOX_SAMPLER: u32 = 21;
     pub const LINEAR_SAMPLER: u32 = 7;
@@ -219,6 +222,16 @@ pub fn load_compute_shader(
             binding: ShaderBindingID::COOKIES,
             descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
             descriptor_count: bindings.cookies.len() as u32,
+            stage_flags: vk::ShaderStageFlags::COMPUTE,
+            ..Default::default()
+        });
+    }
+
+    if bindings.alphas.len() > 0 {
+        layout_bindings.push(vk::DescriptorSetLayoutBinding {
+            binding: ShaderBindingID::ALPHAS,
+            descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+            descriptor_count: bindings.alphas.len() as u32,
             stage_flags: vk::ShaderStageFlags::COMPUTE,
             ..Default::default()
         });

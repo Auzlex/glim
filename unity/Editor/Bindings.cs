@@ -206,6 +206,8 @@ namespace Glim
 
             [MarshalAs(UnmanagedType.I1)] public bool transparent;
             [MarshalAs(UnmanagedType.I1)] public bool no_shadows;
+
+            public int alpha_index;
         }
 
         public enum LightType : byte

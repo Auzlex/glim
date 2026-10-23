@@ -586,6 +586,7 @@ fn render_preview(app: &mut Glim) {
         visibility: visibility.view,
         preview_diffuse: diffuse.view(),
         cookies: &app.cookie_array.views(),
+        alphas: &app.alphas_array.views(),
         linear_sampler: app.linear_sampler,
     };
 
@@ -678,6 +679,7 @@ fn render_preview(app: &mut Glim) {
                     skybox_sampler: app.skybox.sampler(),
                     visibility: visibility.view,
                     preview_diffuse: diffuse.view(),
+                    alphas: &app.alphas_array.views(),
                     cookies: &app.cookie_array.views(),
                     linear_sampler: app.linear_sampler,
                 };
@@ -1053,6 +1055,7 @@ fn update_render_target(app: &mut Glim, settings: &LightmapSettings) {
             skybox_sampler: app.skybox.sampler(),
             visibility: visibility.view,
             preview_diffuse: diffuse.view(),
+            alphas: &app.alphas_array.views(),
             cookies: &app.cookie_array.views(),
             linear_sampler: app.linear_sampler,
         };
@@ -1490,6 +1493,7 @@ unsafe fn render_lightmaps(app: &mut Glim) {
         skybox_sampler: app.skybox.sampler(),
         visibility: visibility_expanded.view,
         preview_diffuse: vk::ImageView::null(),
+        alphas: &app.alphas_array.views(),
         cookies: &app.cookie_array.views(),
         linear_sampler: app.linear_sampler,
     };
@@ -2943,6 +2947,7 @@ fn bake_shadowmask(app: &mut Glim, pixel_buffer: &Buffer, lightmap_index: usize)
         visibility: vk::ImageView::null(),
         preview_diffuse: vk::ImageView::null(),
         cookies: &cookies,
+        alphas: &app.alphas_array.views(),
         linear_sampler: app.linear_sampler,
     };
 

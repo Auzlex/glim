@@ -32,6 +32,8 @@ pub struct FfiMesh {
 
     pub transparent: bool,
     pub no_shadows: bool,
+
+    pub alpha_index: i32,
 }
 
 #[repr(C)]
@@ -144,7 +146,7 @@ impl Mesh {
 
         self.main_uvs.reserve(index_count);
 
-        let alpha_id = 0 as f32;
+        let alpha_id = mesh.alpha_index as f32;
 
         for &idx in indices {
             let uv = main_uvs[idx as usize];

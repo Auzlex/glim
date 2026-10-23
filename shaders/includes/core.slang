@@ -2,7 +2,7 @@
 #include "ray.slang"
 #include "util.slang"
 
-#if 0
+#if 1
 bool TriangleAlphaTest(uint primitiveID, float2 bary)
 {
     float u = bary.x;
@@ -14,10 +14,15 @@ bool TriangleAlphaTest(uint primitiveID, float2 bary)
     float4 uv2 = MainUVs[primitiveID * 3 + 2];
 
     float2 uv = uv0.xy * w + uv1.xy * u + uv2.xy * v;
-    uint textureIndex = uint(uv0.z);
+    uint textureIndex = int(uv0.z);
 
-    float alpha = SampleAlpha(uv, textureIndex);
-    return alpha >= 0.5;
+    if (textureIndex >= 0)
+    {
+        float alpha = SampleAlpha(uv, textureIndex, true);
+        return alpha >= 0.5;
+    }
+
+    return true;
 }
 #else
 bool TriangleAlphaTest(uint primitiveID, float2 bary)
