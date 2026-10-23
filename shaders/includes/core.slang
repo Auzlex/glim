@@ -2,12 +2,39 @@
 #include "ray.slang"
 #include "util.slang"
 
+#if 1
+bool TriangleAlphaTest(uint primitiveID, float2 bary)
+{
+    float u = bary.x;
+    float v = bary.y;
+    float w = 1.0 - u - v;
+
+    float4 uv0 = MainUVs[primitiveID * 3 + 0];
+    float4 uv1 = MainUVs[primitiveID * 3 + 1];
+    float4 uv2 = MainUVs[primitiveID * 3 + 2];
+
+    float2 uv = uv0.xy * w + uv1.xy * u + uv2.xy * v;
+
+    uint packed = asuint(uv0.z);
+    uint textureIndex = packed & 0xFFFF;
+    bool wrapUV = (packed & (1u << 16)) != 0;
+    float cutoff = uv0.w;
+
+    if (textureIndex != 0xFFFF)
+    {
+        return SampleAlpha(uv, textureIndex, wrapUV) >= cutoff;
+    }
+
+    return true;
+}
+#else
 bool TriangleAlphaTest(uint primitiveID, float2 bary)
 {
     Surface surf = Surface::Get(primitiveID, bary);
     float alpha = SampleAlbedo(surf.uv, surf.lightmapGroup).a;
     return alpha >= 0.5;
 }
+#endif
 
 #pragma warning(disable: 41035)
 

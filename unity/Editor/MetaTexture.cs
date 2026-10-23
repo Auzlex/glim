@@ -95,7 +95,7 @@ namespace Glim
             return Color.white;
         }
 
-        Texture GetMaterialAlbedo(Material mat)
+        static Texture GetMaterialAlbedo(Material mat)
         {
             if (mat.HasProperty(_MainTex))
             {
@@ -105,6 +105,24 @@ namespace Glim
             {
                 return mat.GetTexture(_BaseMap);
             }
+            return Texture2D.whiteTexture;
+        }
+
+        public static Texture2D GetMaterialAlpha(Material mat)
+        {
+            Texture tex = GetMaterialAlbedo(mat);
+
+            if (tex is Texture2D tex2d)
+            {
+                int components = (int)GraphicsFormatUtility.GetComponentCount(tex2d.graphicsFormat);
+                bool alpha8 = tex2d.format == TextureFormat.Alpha8;
+
+                if (alpha8 || components == 4)
+                {
+                    return tex2d;
+                }
+            }
+
             return Texture2D.whiteTexture;
         }
 
@@ -147,21 +165,26 @@ namespace Glim
             variant.SetTexture(_MainTex, GetMaterialAlbedo(source));
             variant.SetColor(_Color, GetMaterialColor(source));
 
-            string renderType = source.GetTag("RenderType", false, "");
-            if (variant.HasProperty(_Cutoff) && renderType == "TransparentCutout")
-            {
-                variant.SetFloat(_Cutoff, source.GetFloat(_Cutoff));
-            }
-            else
-            {
-                variant.SetFloat(_Cutoff, 0.5f);
-            }
+            variant.SetFloat(_Cutoff, GetMaterialCutoff(source));
 
             variant.SetTextureScale(_MainTex, GetMaterialAlbedoScale(source));
             variant.SetTextureOffset(_MainTex, GetMaterialAlbedoOffset(source));
 
             _alphaMatVariants.Add(source, variant);
             return variant;
+        }
+
+        public static float GetMaterialCutoff(Material source)
+        {
+            string renderType = source.GetTag("RenderType", false, "");
+            if (source.HasProperty(_Cutoff) && renderType == "TransparentCutout")
+            {
+                return source.GetFloat(_Cutoff);
+            }
+            else
+            {
+                return 0.5f;
+            }
         }
 
         void RenderMeta(IList<Renderer> renderers, AtlasType type, CommandBuffer cmd)
@@ -355,6 +378,35 @@ namespace Glim
             // }
 
             return false;
+        }
+
+        public static int GetMaterialAlbedoProperty(Material mat)
+        {
+            if (mat.HasProperty(_MainTex)) return _MainTex;
+            if (mat.HasProperty(_BaseMap)) return _BaseMap;
+            return -1;
+        }
+
+        public static void GetMaterialAlbedoScaleOffset(Material mat, out Vector2 scale, out Vector2 offset)
+        {
+            int prop = GetMaterialAlbedoProperty(mat);
+            if (prop >= 0)
+            {
+                scale = mat.GetTextureScale(prop);
+                offset = mat.GetTextureOffset(prop);
+            }
+            else
+            {
+                scale = Vector2.one;
+                offset = Vector2.zero;
+            }
+        }
+
+        public static float GetMaterialColorAlpha(Material mat)
+        {
+            if (mat.HasProperty(_BaseColor)) return mat.GetColor(_BaseColor).a;
+            if (mat.HasProperty(_Color)) return mat.GetColor(_Color).a;
+            return 1.0f;
         }
 
         public void Dispose()

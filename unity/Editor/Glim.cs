@@ -6,6 +6,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
@@ -81,9 +82,16 @@ namespace Glim
         public Vector3Int resolution;
     }
 
-    public struct LightCookieData
+    public struct CookiePixelsData
     {
         public Color32[] pixels;
+        public uint width;
+        public uint height;
+    }
+
+    public struct AlphaPixelsData
+    {
+        public byte[] pixels;
         public uint width;
         public uint height;
     }
@@ -91,7 +99,8 @@ namespace Glim
     public class BakeContext
     {
         public List<Bindings.Light> bakeLights = new();
-        public List<LightCookieData> cookies = new();
+        public List<CookiePixelsData> cookies = new();
+        public List<AlphaPixelsData> alphas = new();
         public List<Glim.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
 
@@ -313,7 +322,7 @@ namespace Glim
                 if (cookie is Texture2D tex)
                 {
                     var pixels = GetPixels32(tex);
-                    cookies.Add(new LightCookieData()
+                    cookies.Add(new CookiePixelsData()
                     {
                         pixels = pixels,
                         width = (uint)tex.width,
@@ -323,7 +332,7 @@ namespace Glim
                 else if (cookie is Cubemap cube)
                 {
                     var pixels = CubemapToOctahedralPixels(cube, out int size);
-                    cookies.Add(new LightCookieData
+                    cookies.Add(new CookiePixelsData
                     {
                         pixels = pixels,
                         width = (uint)size,
@@ -651,13 +660,17 @@ namespace Glim
                 {
                     vertices = mesh.vertices,
                     normals = mesh.normals,
-                    uvs = mesh.uv,
+                    lightmapUVs = mesh.uv,
+                    mainUVs = mesh.uv,
                     indices = mesh.triangles,
                     groupIndex = groupIndex,
                     backfaceGI = false,
-                    transparent = hasHoles ? true : false,
+                    transparent = hasHoles,
                     emissive = false,
-                    fixSeams = true
+                    fixSeams = false,
+                    alphaTexture = data.holesTexture,
+                    alphaWrap = false,
+                    cutoff = 0.5f,
                 };
                 sceneMesh.Add(meshData);
                 GameObject.DestroyImmediate(mesh);
@@ -689,6 +702,34 @@ namespace Glim
                 }
 
                 groupIndex++;
+            }
+
+            List<Texture> alphaTextures = new();
+            var alphaLookup = new Dictionary<Texture, int>();
+            foreach (var mesh in sceneMesh)
+            {
+                if (!mesh.alphaTexture)
+                {
+                    mesh.alphaTextureIndex = -1;
+                    continue;
+                }
+
+                if (!alphaLookup.TryGetValue(mesh.alphaTexture, out int index))
+                {
+                    index = alphaTextures.Count;
+                    alphaLookup[mesh.alphaTexture] = index;
+                    alphaTextures.Add(mesh.alphaTexture);
+
+                    alphas.Add(new AlphaPixelsData
+                    {
+                        pixels = GetAlphaPixels(mesh.alphaTexture),
+                        width = (uint)mesh.alphaTexture.width,
+                        height = (uint)mesh.alphaTexture.height,
+                    });
+                }
+
+                mesh.alphaTextureIndex = index;
+                mesh.alphaTexture = null; // drop the reference, only the index is needed from here on
             }
 
 
@@ -758,6 +799,54 @@ namespace Glim
             RenderTexture.ReleaseTemporary(render_texture);
 
             return pixels;
+        }
+
+        // Keeps only the last channel: 1 comp -> R, 2 -> G, 4 -> A.
+        // 3 comps (RGB) has no alpha, so it returns 1.0 (opaque).
+        // Accepts RenderTexture too (e.g. terrain holes, R8 unorm where 1 = solid, 0 = hole).
+        public static byte[] GetAlphaPixels(Texture texture)
+        {
+            int components = (int)GraphicsFormatUtility.GetComponentCount(texture.graphicsFormat);
+            bool alpha8 = texture is Texture2D t2 && t2.format == TextureFormat.Alpha8; // samples as (1,1,1,a)
+
+            Color[] pixels;
+            if (texture is Texture2D { isReadable: true } readableTex)
+            {
+                pixels = readableTex.GetPixels();
+            }
+            else
+            {
+                // RenderTexture or non-readable Texture2D: blit to a float RT and read back
+                var rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                Graphics.Blit(texture, rt);
+
+                var previous = RenderTexture.active;
+                RenderTexture.active = rt;
+
+                var readable = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+                readable.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+                pixels = readable.GetPixels();
+
+                Object.DestroyImmediate(readable);
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+
+            var result = new byte[pixels.Length];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                float a;
+                if (alpha8) a = pixels[i].a;
+                else switch (components)
+                    {
+                        case 1: a = pixels[i].r; break;
+                        case 2: a = pixels[i].g; break;
+                        case 4: a = pixels[i].a; break;
+                        default: a = 1.0f; break;
+                    }
+                result[i] = (byte)Mathf.RoundToInt(Mathf.Clamp01(a) * 255f);
+            }
+            return result;
         }
 
         static Material cubeToOctahedralMat;
@@ -875,7 +964,8 @@ namespace Glim
         {
             public Vector3[] vertices;
             public Vector3[] normals;
-            public Vector2[] uvs;
+            public Vector2[] lightmapUVs;
+            public Vector2[] mainUVs;
             public int[] indices;
             public uint groupIndex;
             public bool backfaceGI;
@@ -883,6 +973,11 @@ namespace Glim
             public bool emissive;
             public bool fixSeams;
             public bool noShadows;
+
+            public Texture alphaTexture;
+            public int alphaTextureIndex = -1;
+            public bool alphaWrap;
+            public float cutoff;
         }
 
         public static List<MeshData> ExtractMeshData(Renderer[] renderers, uint groupIndex)
@@ -891,12 +986,14 @@ namespace Glim
 
             var vertices = new List<Vector3>();
             var normals = new List<Vector3>();
-            var uvs = new List<Vector2>();
+            var lightmapUVs = new List<Vector2>();
+            var mainUVs = new List<Vector2>();
             var indices = new List<int>();
 
             var localVertices = new List<Vector3>();
             var localNormals = new List<Vector3>();
-            var localUvs = new List<Vector2>();
+            var localLightmapUvs = new List<Vector2>();
+            var localMainUvs = new List<Vector2>();
             var localIndices = new List<int>();
             var remap = new Dictionary<int, int>();
 
@@ -927,12 +1024,14 @@ namespace Glim
 
                 if (mesh.HasVertexAttribute(VertexAttribute.TexCoord1))
                 {
-                    mesh.GetUVs(1, uvs);
+                    mesh.GetUVs(1, lightmapUVs);
                 }
                 else
                 {
-                    mesh.GetUVs(0, uvs);
+                    mesh.GetUVs(0, lightmapUVs);
                 }
+
+                mesh.GetUVs(0, mainUVs);
 
                 var enlightenVertexStream = mr.enlightenVertexStream;
                 var additionalVertexStreams = mr.additionalVertexStreams;
@@ -940,14 +1039,14 @@ namespace Glim
                 {
                     if (enlightenVertexStream.HasVertexAttribute(VertexAttribute.TexCoord1))
                     {
-                        enlightenVertexStream.GetUVs(1, uvs);
+                        enlightenVertexStream.GetUVs(1, lightmapUVs);
                     }
                 }
                 else if (additionalVertexStreams)
                 {
                     if (additionalVertexStreams.HasVertexAttribute(VertexAttribute.TexCoord1))
                     {
-                        additionalVertexStreams.GetUVs(1, uvs);
+                        additionalVertexStreams.GetUVs(1, lightmapUVs);
                     }
                 }
 
@@ -973,9 +1072,9 @@ namespace Glim
                 Vector4 scaleOffset = mr.lightmapScaleOffset;
                 Vector2 scale = new(scaleOffset.x, scaleOffset.y);
                 Vector2 offset = new(scaleOffset.z, scaleOffset.w);
-                for (int uvIndex = 0; uvIndex < uvs.Count; uvIndex++)
+                for (int uvIndex = 0; uvIndex < lightmapUVs.Count; uvIndex++)
                 {
-                    uvs[uvIndex] = uvs[uvIndex] * scale + offset;
+                    lightmapUVs[uvIndex] = lightmapUVs[uvIndex] * scale + offset;
                 }
 
                 for (int submeshIndex = 0; submeshIndex < materials.Length; submeshIndex++)
@@ -994,7 +1093,7 @@ namespace Glim
                     var topology = mesh.GetTopology(submeshIndex);
                     if (topology != MeshTopology.Triangles)
                     {
-                        Debug.LogError($"GameObject {mr.name} with Mesh {mesh.name}     topology != MeshTopology.Triangles", mr.gameObject);
+                        Debug.LogError($"GameObject {mr.name} Mesh {mesh.name} topology != MeshTopology.Triangles", mr.gameObject);
                         continue;
                         // todo Quads
                     }
@@ -1016,7 +1115,8 @@ namespace Glim
                     remap.Clear();
                     localVertices.Clear();
                     localNormals.Clear();
-                    localUvs.Clear();
+                    localLightmapUvs.Clear();
+                    localMainUvs.Clear();
                     localIndices.Clear();
                     localIndices.Capacity = indices.Count;
 
@@ -1031,15 +1131,52 @@ namespace Glim
 
                             localVertices.Add(vertices[globalIndex]);
                             localNormals.Add(normals[globalIndex]);
-                            localUvs.Add(uvs[globalIndex]);
+                            localLightmapUvs.Add(lightmapUVs[globalIndex]);
+                            localMainUvs.Add(mainUVs[globalIndex]);
                         }
 
                         localIndices.Add(localIndex);
                     }
 
+                    if (localMainUvs.Count != localLightmapUvs.Count)
+                    {
+                        throw new Exception($"uv0 Count != uv1 Count on mesh {mesh.name} GameObject {mr.name}");
+                    }
+                    Texture2D alphaTexture = null;
+                    bool alphaWrap = false;
+                    float cutoff = 0.5f;
+                    if (MetaTexture.IsMaterialTransparent(material))
+                    {
+                        alphaTexture = MetaTexture.GetMaterialAlpha(material);
+                    }
+
+                    if (alphaTexture != null)
+                    {
+                        Vector2 tiling;
+                        Vector2 tilingOffset;
+                        MetaTexture.GetMaterialAlbedoScaleOffset(material, out tiling, out tilingOffset);
+                        for (int j = 0; j < localMainUvs.Count; j++)
+                        {
+                            localMainUvs[j] = localMainUvs[j] * tiling + tilingOffset;
+                        }
+
+                        alphaWrap = alphaTexture.wrapMode != TextureWrapMode.Clamp; // other modes can be supported too if needed
+                        float baseCutoff = MetaTexture.GetMaterialCutoff(material);
+
+                        float colorAlpha = MetaTexture.GetMaterialColorAlpha(material);
+                        if (colorAlpha > 1e-5f)
+                        {
+                            cutoff = baseCutoff / colorAlpha;
+                        }
+                        else
+                        {
+                            cutoff = baseCutoff <= 0.0f ? 0.0f : 2.0f;
+                        }
+                    }
 
                     if (localVertices.Count != localNormals.Count ||
-                        localVertices.Count != localUvs.Count ||
+                        localVertices.Count != localLightmapUvs.Count ||
+                        localVertices.Count != localMainUvs.Count ||
                         localIndices.Count % 3 != 0)
                     {
                         Debug.LogError($"GameObject {mr.name} with Mesh {mesh.name} has an invalid mesh.", mr.gameObject);
@@ -1050,14 +1187,18 @@ namespace Glim
                     {
                         vertices = localVertices.ToArray(),
                         normals = localNormals.ToArray(),
-                        uvs = localUvs.ToArray(),
+                        lightmapUVs = localLightmapUvs.ToArray(),
+                        mainUVs = localMainUvs.ToArray(),
                         indices = localIndices.ToArray(),
                         groupIndex = groupIndex,
                         backfaceGI = backfaceGI,
                         transparent = transparent,
                         emissive = emissive,
                         fixSeams = fixSeams,
-                        noShadows = mr.shadowCastingMode == ShadowCastingMode.Off
+                        noShadows = mr.shadowCastingMode == ShadowCastingMode.Off,
+                        alphaTexture = alphaTexture,
+                        alphaWrap = alphaWrap,
+                        cutoff = cutoff,
                     };
 
                     datas.Add(data);

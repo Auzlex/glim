@@ -701,18 +701,22 @@ namespace Glim
                     {
                         var data = ctx.sceneMesh[i];
 
+                        Debug.Assert(data.lightmapUVs.Length == data.mainUVs.Length);
+
                         unsafe
                         {
                             fixed (Vector3* vPtr = data.vertices)
                             fixed (Vector3* nPtr = data.normals)
-                            fixed (Vector2* uPtr = data.uvs)
+                            fixed (Vector2* lmuvPtr = data.lightmapUVs)
+                            fixed (Vector2* mainuvPtr = data.mainUVs)
                             fixed (int* iPtr = data.indices)
                             {
                                 var exportedMesh = new Bindings.Mesh
                                 {
                                     vertices = vPtr,
                                     normals = nPtr,
-                                    uvs = uPtr,
+                                    lightmapUVs = lmuvPtr,
+                                    mainUVs = mainuvPtr,
                                     indices = (uint*)iPtr,
                                     vertices_length = (uint)data.vertices.Length,
                                     indices_length = (uint)data.indices.Length,
@@ -722,6 +726,9 @@ namespace Glim
                                     fix_seams = data.fixSeams,
                                     transparent = data.transparent,
                                     no_shadows = data.noShadows,
+                                    alpha_index = data.alphaTextureIndex,
+                                    cutoff = data.cutoff,
+                                    alpha_wrap = data.alphaWrap,
                                 };
 
                                 Bindings.app_add_mesh(app, exportedMesh);
@@ -758,7 +765,7 @@ namespace Glim
 
                     for (int i = 0; i < ctx.cookies.Count; i++)
                     {
-                        LightCookieData cookie = ctx.cookies[i];
+                        CookiePixelsData cookie = ctx.cookies[i];
 
                         unsafe
                         {
@@ -768,7 +775,23 @@ namespace Glim
                             }
                         }
 
-                        // todo clear
+                        cookie.pixels = new Color32[0];
+                        ctx.cookies[i] = cookie;
+                    }
+
+                    for (int i = 0; i < ctx.alphas.Count; i++)
+                    {
+                        var a = ctx.alphas[i];
+
+                        unsafe
+                        {
+                            fixed (byte* pixels = a.pixels)
+                            {
+                                Bindings.app_add_alpha_texture(app, pixels, (uint)a.pixels.Length, a.width, a.height);
+                            }
+                        }
+                        a.pixels = new byte[0];
+                        ctx.alphas[i] = a;
                     }
 
                     foreach (var position in ctx.probePositions)

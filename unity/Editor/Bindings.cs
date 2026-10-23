@@ -178,6 +178,9 @@ namespace Glim
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static unsafe extern void app_add_light_cookie(IntPtr app, Color32* pixels, uint pixels_length, uint width, uint height);
 
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static unsafe extern void app_add_alpha_texture(IntPtr app, byte* pixels, uint pixels_length, uint width, uint height);
+
         [DllImport("glim", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void app_set_skybox(IntPtr app, Color[] pixels, uint pixels_length, uint width, uint height);
 
@@ -189,7 +192,8 @@ namespace Glim
         {
             public Vector3* vertices;
             public Vector3* normals;
-            public Vector2* uvs;
+            public Vector2* lightmapUVs;
+            public Vector2* mainUVs;
             public uint* indices;
 
             public uint vertices_length;
@@ -202,6 +206,10 @@ namespace Glim
 
             [MarshalAs(UnmanagedType.I1)] public bool transparent;
             [MarshalAs(UnmanagedType.I1)] public bool no_shadows;
+
+            public int alpha_index;
+            [MarshalAs(UnmanagedType.I1)] public bool alpha_wrap;
+            public float cutoff;
         }
 
         public enum LightType : byte
