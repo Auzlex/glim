@@ -1134,15 +1134,26 @@ namespace Glim
 
                     if (alphaTexture != null)
                     {
-                        Vector2 tiling = material.mainTextureScale;
-                        Vector2 tilingOffset = material.mainTextureOffset;
+                        Vector2 tiling;
+                        Vector2 tilingOffset;
+                        MetaTexture.GetMaterialAlbedoScaleOffset(material, out tiling, out tilingOffset);
                         for (int j = 0; j < localMainUvs.Count; j++)
                         {
                             localMainUvs[j] = localMainUvs[j] * tiling + tilingOffset;
                         }
 
                         alphaWrap = alphaTexture.wrapMode != TextureWrapMode.Clamp; // other modes can be supported too if needed
-                        cutoff = MetaTexture.GetMaterialCutoff(material);
+                        float baseCutoff = MetaTexture.GetMaterialCutoff(material);
+
+                        float colorAlpha = MetaTexture.GetMaterialColorAlpha(material);
+                        if (colorAlpha > 1e-5f)
+                        {
+                            cutoff = baseCutoff / colorAlpha;
+                        }
+                        else
+                        {
+                            cutoff = baseCutoff <= 0.0f ? 0.0f : 2.0f;
+                        }
                     }
 
                     var data = new MeshData

@@ -380,6 +380,35 @@ namespace Glim
             return false;
         }
 
+        public static int GetMaterialAlbedoProperty(Material mat)
+        {
+            if (mat.HasProperty(_MainTex)) return _MainTex;
+            if (mat.HasProperty(_BaseMap)) return _BaseMap;
+            return -1;
+        }
+
+        public static void GetMaterialAlbedoScaleOffset(Material mat, out Vector2 scale, out Vector2 offset)
+        {
+            int prop = GetMaterialAlbedoProperty(mat);
+            if (prop >= 0)
+            {
+                scale = mat.GetTextureScale(prop);
+                offset = mat.GetTextureOffset(prop);
+            }
+            else
+            {
+                scale = Vector2.one;
+                offset = Vector2.zero;
+            }
+        }
+
+        public static float GetMaterialColorAlpha(Material mat)
+        {
+            if (mat.HasProperty(_BaseColor)) return mat.GetColor(_BaseColor).a;
+            if (mat.HasProperty(_Color)) return mat.GetColor(_Color).a;
+            return 1.0f;
+        }
+
         public void Dispose()
         {
             if (_rt)
