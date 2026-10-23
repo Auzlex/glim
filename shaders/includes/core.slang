@@ -14,7 +14,7 @@ bool TriangleAlphaTest(uint primitiveID, float2 bary)
     float4 uv2 = MainUVs[primitiveID * 3 + 2];
 
     float2 uv = uv0.xy * w + uv1.xy * u + uv2.xy * v;
-    uint textureIndex = int(uv0.z);
+    int textureIndex = int(uv0.z);
 
     if (textureIndex >= 0)
     {

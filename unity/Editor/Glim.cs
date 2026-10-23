@@ -91,7 +91,7 @@ namespace Glim
 
     public struct AlphaPixelsData
     {
-        public float[] pixels;
+        public byte[] pixels;
         public uint width;
         public uint height;
     }
@@ -800,7 +800,7 @@ namespace Glim
 
         // Keeps only the last channel: 1 comp -> R, 2 -> G, 4 -> A.
         // 3 comps (RGB) has no alpha, so it returns 1.0 (opaque). Change that case if you'd rather take B.
-        public static float[] GetAlphaPixels(Texture2D texture)
+        public static byte[] GetAlphaPixels(Texture2D texture)
         {
             int components = (int)GraphicsFormatUtility.GetComponentCount(texture.graphicsFormat);
             bool alpha8 = texture.format == TextureFormat.Alpha8; // samples as (1,1,1,a), so read .a
@@ -827,11 +827,11 @@ namespace Glim
                 RenderTexture.ReleaseTemporary(rt);
             }
 
-            var result = new float[pixels.Length];
+            var result = new byte[pixels.Length];
             for (int i = 0; i < pixels.Length; i++)
             {
-                var p = pixels[i];
-                result[i] = (alpha8 || components == 4) ? p.a : 1.0f;
+                float a = (alpha8 || components == 4) ? pixels[i].a : 1.0f;
+                result[i] = (byte)Mathf.RoundToInt(Mathf.Clamp01(a) * 255f);
             }
             return result;
         }

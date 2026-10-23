@@ -179,7 +179,7 @@ namespace Glim
         public static unsafe extern void app_add_light_cookie(IntPtr app, Color32* pixels, uint pixels_length, uint width, uint height);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static unsafe extern void app_add_alpha_texture(IntPtr app, float* pixels, uint pixels_length, uint width, uint height);
+        public static unsafe extern void app_add_alpha_texture(IntPtr app, byte* pixels, uint pixels_length, uint width, uint height);
 
         [DllImport("glim", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void app_set_skybox(IntPtr app, Color[] pixels, uint pixels_length, uint width, uint height);

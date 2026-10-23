@@ -783,12 +783,12 @@ namespace Glim
 
                         unsafe
                         {
-                            fixed (float* pixels = a.pixels)
+                            fixed (byte* pixels = a.pixels)
                             {
                                 Bindings.app_add_alpha_texture(app, pixels, (uint)a.pixels.Length, a.width, a.height);
                             }
                         }
-                        a.pixels = new float[0];
+                        a.pixels = new byte[0];
                         ctx.alphas[i] = a;
                     }
 
