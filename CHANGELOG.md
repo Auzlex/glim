@@ -1,3 +1,18 @@
+# [Glim](https://github.com/z3y/glim)
+
+# v0.10.0
+
+- Implemented full resolution alpha texture sampling
+  - Previously the alpha resolution was limited by the lightmap group resolution
+  - The meta pass does not contain alpha information so it comes from material properties
+  - Gets alpha from textures by property names _MainTex and _BaseMap, along with their scale and offset
+  - Applies _Cutoff and _Color.a values
+  - Handles Repeat and Wrap texture modes
+  - This can be further expanded to cover more shaders with common property names
+- Fixed a compile error in unity 6000
+- Added additional validation checks for meshes
+  - Objects with RectTransform are now skipped
+  - Non triangle MeshTopology (such as Quads) now log an error instead of crashing
 
 # v0.9.2
 
