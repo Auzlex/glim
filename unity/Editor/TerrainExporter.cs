@@ -50,18 +50,21 @@ namespace Glim
             {
                 for (int x = 0; x < vertsX - 1; x++)
                 {
-                    // Skip quads that fall in a terrain hole
                     if (holes != null && holeRes > 1)
                     {
                         float u0 = (float)x / (vertsX - 1), u1 = (float)(x + 1) / (vertsX - 1);
                         float v0 = (float)z / (vertsZ - 1), v1 = (float)(z + 1) / (vertsZ - 1);
-                        int hx0 = Mathf.Clamp(Mathf.RoundToInt(u0 * (holeRes - 1)), 0, holeRes - 1);
-                        int hx1 = Mathf.Clamp(Mathf.RoundToInt(u1 * (holeRes - 1)), 0, holeRes - 1);
-                        int hz0 = Mathf.Clamp(Mathf.RoundToInt(v0 * (holeRes - 1)), 0, holeRes - 1);
-                        int hz1 = Mathf.Clamp(Mathf.RoundToInt(v1 * (holeRes - 1)), 0, holeRes - 1);
 
-                        bool anyHole = !holes[hz0, hx0] || !holes[hz0, hx1] || !holes[hz1, hx0] || !holes[hz1, hx1];
-                        if (anyHole) continue;
+                        int hx0 = Mathf.Clamp(Mathf.FloorToInt(u0 * (holeRes - 1)), 0, holeRes - 1);
+                        int hx1 = Mathf.Clamp(Mathf.CeilToInt(u1 * (holeRes - 1)), 0, holeRes - 1);
+                        int hz0 = Mathf.Clamp(Mathf.FloorToInt(v0 * (holeRes - 1)), 0, holeRes - 1);
+                        int hz1 = Mathf.Clamp(Mathf.CeilToInt(v1 * (holeRes - 1)), 0, holeRes - 1);
+
+                        bool allHole = true;
+                        for (int hz = hz0; hz <= hz1 && allHole; hz++)
+                            for (int hx = hx0; hx <= hx1; hx++)
+                                if (holes[hz, hx]) { allHole = false; break; }
+                        if (allHole) continue;
                     }
 
                     int i0 = z * vertsX + x;
