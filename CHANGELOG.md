@@ -7,7 +7,7 @@
   - The meta pass does not contain alpha information so it comes from material properties
   - Gets alpha from textures by property names _MainTex and _BaseMap, along with their scale and offset
   - Applies _Cutoff and _Color.a values
-  - Handles Repeat and Wrap texture modes
+  - Handles Repeat and Clamp texture modes
   - This can be further expanded to cover more shaders with common property names
 - Fixed a compile error in unity 6000
 - Added additional validation checks for meshes
