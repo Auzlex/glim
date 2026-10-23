@@ -165,21 +165,26 @@ namespace Glim
             variant.SetTexture(_MainTex, GetMaterialAlbedo(source));
             variant.SetColor(_Color, GetMaterialColor(source));
 
-            string renderType = source.GetTag("RenderType", false, "");
-            if (variant.HasProperty(_Cutoff) && renderType == "TransparentCutout")
-            {
-                variant.SetFloat(_Cutoff, source.GetFloat(_Cutoff));
-            }
-            else
-            {
-                variant.SetFloat(_Cutoff, 0.5f);
-            }
+            variant.SetFloat(_Cutoff, GetMaterialCutoff(source));
 
             variant.SetTextureScale(_MainTex, GetMaterialAlbedoScale(source));
             variant.SetTextureOffset(_MainTex, GetMaterialAlbedoOffset(source));
 
             _alphaMatVariants.Add(source, variant);
             return variant;
+        }
+
+        public static float GetMaterialCutoff(Material source)
+        {
+            string renderType = source.GetTag("RenderType", false, "");
+            if (source.HasProperty(_Cutoff) && renderType == "TransparentCutout")
+            {
+                return source.GetFloat(_Cutoff);
+            }
+            else
+            {
+                return 0.5f;
+            }
         }
 
         void RenderMeta(IList<Renderer> renderers, AtlasType type, CommandBuffer cmd)

@@ -34,6 +34,8 @@ pub struct FfiMesh {
     pub no_shadows: bool,
 
     pub alpha_index: i32,
+    pub alpha_wrap: bool,
+    pub cutoff: f32,
 }
 
 #[repr(C)]
@@ -146,13 +148,20 @@ impl Mesh {
 
         self.main_uvs.reserve(index_count);
 
-        let alpha_id = mesh.alpha_index as f32;
+        let alpha_id: u32 = if mesh.alpha_index < 0 {
+            0xFFFF
+        } else {
+            (mesh.alpha_index as u32) & 0xFFFF
+        };
+        let wrap_bit: u32 = if mesh.alpha_wrap { 1 << 16 } else { 0 };
+        let packed = f32::from_bits(alpha_id | wrap_bit);
+        let cutoff = mesh.cutoff;
 
         match system {
             CoordinateSystem::Default => {
                 for &idx in indices {
                     let uv = main_uvs[idx as usize];
-                    self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
+                    self.main_uvs.push([uv.x, uv.y, packed, cutoff]);
                 }
                 self.indices.extend(indices.iter().map(|i| i + offset));
             }
@@ -160,11 +169,10 @@ impl Mesh {
                 self.indices.reserve(indices.len());
 
                 for triangle in indices.chunks(3) {
-                    // same order as the index buffer: 0, 2, 1
                     for &k in &[0usize, 2, 1] {
                         let idx = triangle[k];
                         let uv = main_uvs[idx as usize];
-                        self.main_uvs.push([uv.x, uv.y, alpha_id, 0.0]);
+                        self.main_uvs.push([uv.x, uv.y, packed, cutoff]);
                         self.indices.push(idx + offset);
                     }
                 }

@@ -727,6 +727,8 @@ namespace Glim
                                     transparent = data.transparent,
                                     no_shadows = data.noShadows,
                                     alpha_index = data.alphaTextureIndex,
+                                    cutoff = data.cutoff,
+                                    alpha_wrap = data.alphaWrap,
                                 };
 
                                 Bindings.app_add_mesh(app, exportedMesh);

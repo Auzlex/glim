@@ -208,6 +208,8 @@ namespace Glim
             [MarshalAs(UnmanagedType.I1)] public bool no_shadows;
 
             public int alpha_index;
+            [MarshalAs(UnmanagedType.I1)] public bool alpha_wrap;
+            public float cutoff;
         }
 
         public enum LightType : byte

@@ -958,6 +958,8 @@ namespace Glim
 
             public Texture2D alphaTexture;
             public int alphaTextureIndex = -1;
+            public bool alphaWrap;
+            public float cutoff;
         }
 
         public static List<MeshData> ExtractMeshData(Renderer[] renderers, uint groupIndex)
@@ -1123,6 +1125,8 @@ namespace Glim
                         throw new Exception($"uv0 Count != uv1 Count on mesh {mesh.name} GameObject {mr.name}");
                     }
                     Texture2D alphaTexture = null;
+                    bool alphaWrap = false;
+                    float cutoff = 0.5f;
                     if (MetaTexture.IsMaterialTransparent(material))
                     {
                         alphaTexture = MetaTexture.GetMaterialAlpha(material);
@@ -1136,6 +1140,9 @@ namespace Glim
                         {
                             localMainUvs[j] = localMainUvs[j] * tiling + tilingOffset;
                         }
+
+                        alphaWrap = alphaTexture.wrapMode != TextureWrapMode.Clamp; // other modes can be supported too if needed
+                        cutoff = MetaTexture.GetMaterialCutoff(material);
                     }
 
                     var data = new MeshData
@@ -1152,6 +1159,8 @@ namespace Glim
                         fixSeams = fixSeams,
                         noShadows = mr.shadowCastingMode == ShadowCastingMode.Off,
                         alphaTexture = alphaTexture,
+                        alphaWrap = alphaWrap,
+                        cutoff = cutoff,
                     };
 
                     datas.Add(data);

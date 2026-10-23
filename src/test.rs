@@ -345,6 +345,8 @@ mod tests {
                     transparent,
                     no_shadows,
                     alpha_index: -1,
+                    alpha_wrap: true,
+                    cutoff: 0.5,
                 };
                 app_add_mesh(app, mesh);
             }

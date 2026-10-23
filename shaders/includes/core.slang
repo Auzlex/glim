@@ -14,12 +14,15 @@ bool TriangleAlphaTest(uint primitiveID, float2 bary)
     float4 uv2 = MainUVs[primitiveID * 3 + 2];
 
     float2 uv = uv0.xy * w + uv1.xy * u + uv2.xy * v;
-    int textureIndex = int(uv0.z);
 
-    if (textureIndex >= 0)
+    uint packed = asuint(uv0.z);
+    uint textureIndex = packed & 0xFFFF;
+    bool wrapUV = (packed & (1u << 16)) != 0;
+    float cutoff = uv0.w;
+
+    if (textureIndex != 0xFFFF)
     {
-        float alpha = SampleAlpha(uv, textureIndex, true);
-        return alpha >= 0.5;
+        return SampleAlpha(uv, textureIndex, wrapUV) >= cutoff;
     }
 
     return true;
