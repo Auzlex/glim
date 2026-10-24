@@ -1,5 +1,15 @@
 # [Glim](https://github.com/z3y/glim)
 
+# v0.11.0
+
+- New higher quality UV packing mode: Split Charts
+  - Each mesh is split into multiple charts and allows individual UV islands to get packed separately and more efficiently
+  - Generated UV Meshes are stored in the Lighting Data Asset file itself, which Unity applies at runtime
+  - At build time these UVs get merged into the statically batched mesh, without taking up additional memory
+  - Only works with static batching
+- GlimLightmapGroupSelector now works on Unity Terrains
+  - Allows overriding the terrain lightmap resolution
+
 # v0.10.0
 
 - Implemented full resolution alpha texture sampling
