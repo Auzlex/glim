@@ -576,7 +576,7 @@ namespace Glim
                                         }
                                         clone.name = "GlimUV_" + clone.name;
                                         clone.uv2 = uvs;
-                                        mr.additionalVertexStreams = clone;
+                                        mr.enlightenVertexStream = clone;
                                         r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
                                     }
                                     else
@@ -646,12 +646,17 @@ namespace Glim
                         lmData.FindPropertyRelative("lightmapST").vector4Value = scaleOffset;
                         lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = new Vector4(1, 1, 0, 0);
 
-                        // lmData.FindPropertyRelative("uvMesh");
                         lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
                         lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
 
                         lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
 
+                        if (lightmapGroup.packingType == UVPackingType.SplitCharts)
+                        {
+                            Mesh uvMesh = mr.enlightenVertexStream;
+                            AssetDatabase.AddObjectToAsset(uvMesh, lda.targetObject);
+                            lmData.FindPropertyRelative("uvMesh").objectReferenceValue = uvMesh;
+                        }
                     }
 
                     mrDataOffset = rendererData.arraySize;

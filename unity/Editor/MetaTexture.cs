@@ -277,13 +277,26 @@ namespace Glim
                 }
 
                 Matrix4x4 localToWorld = renderer.localToWorldMatrix;
-                MaterialPropertyBlock mpb = null;
-                var mr = renderer as MeshRenderer;
-                if (mr && mr.additionalVertexStreams)
+                MaterialPropertyBlock mpb = new();
+                renderer.GetPropertyBlock(mpb);
+                if (renderer is MeshRenderer mr)
                 {
-                    mesh = mr.additionalVertexStreams;
-                    mpb = new MaterialPropertyBlock();
-                    renderer.GetPropertyBlock(mpb);
+                    var enlightenVertexStream = mr.enlightenVertexStream;
+                    var additionalVertexStreams = mr.additionalVertexStreams;
+                    if (enlightenVertexStream)
+                    {
+                        if (enlightenVertexStream.HasVertexAttribute(VertexAttribute.TexCoord1))
+                        {
+                            mesh = enlightenVertexStream;
+                        }
+                    }
+                    else if (additionalVertexStreams)
+                    {
+                        if (additionalVertexStreams.HasVertexAttribute(VertexAttribute.TexCoord1))
+                        {
+                            mesh = additionalVertexStreams;
+                        }
+                    }
                 }
 
                 var sharedMaterials = renderer.sharedMaterials;
