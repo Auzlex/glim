@@ -487,22 +487,22 @@ namespace Glim
             {
                 var rendererArray = renderers.ToArray();
 
-                var hashData = new uint[4];
-                hashData[0] = (uint)lightmapGroup.resolution;
-                hashData[1] = lightmapGroup.holeFilling ? 1u : 0u;
-                hashData[2] = lightmapGroup.packingIterations;
-                hashData[3] = (uint)BitConverter.SingleToInt32Bits(lightmapGroup.scaleExponent);
+                // var hashData = new uint[4];
+                // hashData[0] = (uint)lightmapGroup.resolution;
+                // hashData[1] = lightmapGroup.holeFilling ? 1u : 0u;
+                // hashData[2] = lightmapGroup.packingIterations;
+                // hashData[3] = (uint)BitConverter.SingleToInt32Bits(lightmapGroup.scaleExponent);
 
-                var newHash = MeshHash.FromLightmapUV(rendererArray, hashData);
+                // var newHash = MeshHash.FromLightmapUV(rendererArray, hashData);
 
-                bool changed = lightmapGroup.lightmapUVHash != newHash;
+                // bool changed = lightmapGroup.lightmapUVHash != newHash;
 
-                if (!lightmapper.enableUVCache)
-                {
-                    changed = true;
-                }
+                // if (!lightmapper.enableUVCache)
+                // {
+                //     changed = true;
+                // }
 
-                if (changed)
+                if (true)
                 {
 
                     if (lightmapGroup.packingType == UVPackingType.ScaleOffset || lightmapGroup.packingType == UVPackingType.ChartSplitting)
@@ -569,13 +569,26 @@ namespace Glim
                                     if (uvs != null)
                                     {
                                         var mf = r.GetComponent<MeshFilter>();
-                                        var mesh = mf.mesh; // clone
-                                        mesh.uv = uvs;
-                                        mr.enlightenVertexStream = mesh;
+                                        var clone = Object.Instantiate(mf.sharedMesh);
+                                        if (uvs.Length != clone.vertexCount)
+                                        {
+                                            Debug.LogError($"Uv packing failed for renderer {r.name}", r);
+                                        }
+                                        clone.name = "GlimUV_" + clone.name;
+                                        clone.uv2 = uvs;
+                                        mr.additionalVertexStreams = clone;
+                                        r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
+                                    }
+                                    else
+                                    {
+                                        Debug.LogError($"Uv packing failed for renderer {r.name}", r);
                                     }
                                 }
                                 else
                                 {
+                                    mr.enlightenVertexStream = null;
+                                    mr.additionalVertexStreams = null;
+
                                     var so = UVPacking.uvpacker_get_scale_offset(packer, (uint)rendererIndex);
                                     mr.lightmapScaleOffset = so;
                                 }
@@ -587,7 +600,7 @@ namespace Glim
                         float coverage = UVPacking.uvpacker_get_coverage(packer);
                         Bake.bakeMessages.AppendLine($"Group {groupIndex} UVs packed in {elapsed}ms with {coverage * 100.0f}% coverage");
 
-                        lightmapGroup.lightmapUVHash = newHash;
+                        // lightmapGroup.lightmapUVHash = newHash;
                         EditorUtility.SetDirty(lightmapper);
 
                         UVPacking.uvpacker_destroy(packer);

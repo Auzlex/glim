@@ -467,9 +467,11 @@ impl UVPacker {
             let bm = Bitmap::rasterize(chart);
             chart.bitmap = bm;
 
+            // final_scale already includes user and world scale multipliers
+            let s = chart.final_scale;
             for (uv, &base) in chart.uvs.iter_mut().zip(chart.base_uvs.iter()) {
-                uv.x = (base.x * best_scale + ox as f32) * inv_w;
-                uv.y = (base.y * best_scale + oy as f32) * inv_h;
+                uv.x = (base.x * s + ox as f32) * inv_w;
+                uv.y = (base.y * s + oy as f32) * inv_h;
             }
         }
 

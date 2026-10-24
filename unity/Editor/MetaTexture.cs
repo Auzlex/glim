@@ -276,6 +276,16 @@ namespace Glim
                     continue;
                 }
 
+                Matrix4x4 localToWorld = renderer.localToWorldMatrix;
+                MaterialPropertyBlock mpb = null;
+                var mr = renderer as MeshRenderer;
+                if (mr && mr.additionalVertexStreams)
+                {
+                    mesh = mr.additionalVertexStreams;
+                    mpb = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(mpb);
+                }
+
                 var sharedMaterials = renderer.sharedMaterials;
                 int submeshCount = mesh.subMeshCount;
 
@@ -330,7 +340,7 @@ namespace Glim
                             int meta = mat.FindPass("META");
                             if (meta >= 0)
                             {
-                                cmd.DrawRenderer(renderer, mat, submeshIndex, meta);
+                                cmd.DrawMesh(mesh, localToWorld, mat, submeshIndex, meta, mpb);
                             }
                         }
                     }
