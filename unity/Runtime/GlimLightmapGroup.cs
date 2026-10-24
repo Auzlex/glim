@@ -36,6 +36,17 @@ namespace Glim
         public uint Width => (uint)resolution;
         public uint Height => (uint)resolution;
 
+        [Tooltip(
+@"None:
+Use UVs directly from the mesh without any packing. Useful for manually creating the lightmap atlas in external software.
+
+ScaleOffset:
+Packs UVs by offsetting and scaling the entire mesh similar to the built-in lightmapper. This mode requires the mesh to have enough padding between the charts the model importer generated.
+
+SplitCharts:
+Highest Quality UV packing. Each mesh is split into multiple charts and allows individual UV islands to get packed separately and more efficiently. Only works with static batching.
+Generated UV Meshes are stored in the Lighting Data Asset file itself, which Unity applies at runtime. At build time these UVs get merged into the statically batched mesh, without taking up additional memory.
+")]
         public UVPackingType packingType = UVPackingType.ScaleOffset;
         // [Tooltip("Very slow")] public bool bruteForce = false;
         [NonSerialized] public bool bruteForce = false;
