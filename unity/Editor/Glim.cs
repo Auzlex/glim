@@ -505,7 +505,7 @@ namespace Glim
                 if (changed)
                 {
 
-                    if (lightmapGroup.packingType == UVPackingType.ScaleOffset)
+                    if (lightmapGroup.packingType == UVPackingType.ScaleOffset || lightmapGroup.packingType == UVPackingType.ChartSplitting)
                     {
                         var sw = new Stopwatch();
                         sw.Start();
@@ -513,7 +513,8 @@ namespace Glim
                         bool bruteForce = lightmapGroup.bruteForce;
                         bool holeFilling = lightmapGroup.holeFilling;
                         float worldScaleExponent = lightmapGroup.scaleExponent;
-                        var packer = UVPacking.uvpacker_create(lightmapGroup.Width, lightmapGroup.Height, lightmapGroup.packingIterations, bruteForce, holeFilling, worldScaleExponent);
+                        bool split = lightmapGroup.packingType == UVPackingType.ChartSplitting;
+                        var packer = UVPacking.uvpacker_create(lightmapGroup.Width, lightmapGroup.Height, lightmapGroup.packingIterations, bruteForce, holeFilling, split, worldScaleExponent);
                         for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
                         {
                             Renderer r = renderers[rendererIndex];
@@ -560,9 +561,27 @@ namespace Glim
                         {
                             Renderer r = renderers[rendererIndex];
 
-                            var so = UVPacking.uvpacker_get_scale_offset(packer, (uint)rendererIndex);
-                            r.lightmapScaleOffset = so;
-                            EditorUtility.SetDirty(r);
+                            if (r is MeshRenderer mr)
+                            {
+                                if (split)
+                                {
+                                    var uvs = UVPacking.GetMeshUvs(packer, (uint)rendererIndex);
+                                    if (uvs != null)
+                                    {
+                                        var mf = r.GetComponent<MeshFilter>();
+                                        var mesh = mf.mesh; // clone
+                                        mesh.uv = uvs;
+                                        mr.enlightenVertexStream = mesh;
+                                    }
+                                }
+                                else
+                                {
+                                    var so = UVPacking.uvpacker_get_scale_offset(packer, (uint)rendererIndex);
+                                    mr.lightmapScaleOffset = so;
+                                }
+                                EditorUtility.SetDirty(mr);
+                            }
+
                         }
 
                         float coverage = UVPacking.uvpacker_get_coverage(packer);

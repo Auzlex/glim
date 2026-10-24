@@ -3,6 +3,7 @@ use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use crate::math::{Vector2, Vector3};
 use core::slice;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 pub struct Chart {
     pub uvs: Vec<Vector2>,
@@ -10,6 +11,9 @@ pub struct Chart {
 
     pub indices: Vec<u32>,
     pub mesh_id: usize,
+    /// Maps this chart's local vertex index -> vertex index in the original input mesh.
+    /// Identity when `split_charts` is off.
+    pub vertex_map: Vec<u32>,
     pub uv_area: f64,
     pub uv_bounds_area: f64,
     pub bitmap: Bitmap,
@@ -134,14 +138,114 @@ fn determinant(c: Vector2, c2: Vector2, c3: Vector2) -> f32 {
     c.x * num - c2.x * num2 + c3.x * num3
 }
 
+// ---------------------------------------------------------------------------
+// UV island detection
+// ---------------------------------------------------------------------------
+
+fn uf_find(parent: &mut [u32], mut x: u32) -> u32 {
+    while parent[x as usize] != x {
+        let p = parent[x as usize];
+        parent[x as usize] = parent[p as usize];
+        x = parent[x as usize];
+    }
+    x
+}
+
+fn uf_union(parent: &mut [u32], a: u32, b: u32) {
+    let ra = uf_find(parent, a);
+    let rb = uf_find(parent, b);
+    if ra != rb {
+        // keep the smaller index as root so results are deterministic
+        if ra < rb {
+            parent[rb as usize] = ra;
+        } else {
+            parent[ra as usize] = rb;
+        }
+    }
+}
+
+#[inline]
+fn float_key(v: f32) -> u32 {
+    // `+ 0.0` turns -0.0 into 0.0 so both hash identically
+    (v + 0.0).to_bits()
+}
+
+/// Splits a triangle list into UV islands.
+///
+/// Two triangles belong to the same island if they are connected in UV space:
+/// - they share a vertex index, or
+/// - they use vertices that sit at the same UV coordinate AND the same 3D position
+///   (these are the duplicated vertices Unity creates for hard normals / tangent splits,
+///   which are still the same point on the same UV island).
+///
+/// Vertices that share a UV coordinate but sit at different 3D positions are NOT merged,
+/// since that would glue unrelated overlapping islands together.
+///
+/// Returns one flat triangle-vertex-index list per island (original vertex indices),
+/// in order of first appearance.
+fn split_into_islands(positions: &[Vector3], uvs: &[Vector2], indices: &[u32]) -> Vec<Vec<u32>> {
+    let n = positions.len();
+    let mut parent: Vec<u32> = (0..n as u32).collect();
+
+    // weld duplicate vertices (same position + same uv)
+    let mut weld: HashMap<[u32; 5], u32> = HashMap::with_capacity(n);
+    for i in 0..n {
+        let p = positions[i];
+        let uv = uvs[i];
+        let key = [
+            float_key(p.x),
+            float_key(p.y),
+            float_key(p.z),
+            float_key(uv.x),
+            float_key(uv.y),
+        ];
+        match weld.entry(key) {
+            Entry::Occupied(e) => uf_union(&mut parent, *e.get(), i as u32),
+            Entry::Vacant(e) => {
+                e.insert(i as u32);
+            }
+        }
+    }
+
+    // connect vertices through triangles
+    for tri in indices.chunks_exact(3) {
+        uf_union(&mut parent, tri[0], tri[1]);
+        uf_union(&mut parent, tri[1], tri[2]);
+    }
+
+    // group triangles by island root
+    let mut island_of_root: HashMap<u32, usize> = HashMap::new();
+    let mut islands: Vec<Vec<u32>> = Vec::new();
+
+    for tri in indices.chunks_exact(3) {
+        let root = uf_find(&mut parent, tri[0]);
+        let idx = match island_of_root.get(&root) {
+            Some(&idx) => idx,
+            None => {
+                islands.push(Vec::new());
+                let idx = islands.len() - 1;
+                island_of_root.insert(root, idx);
+                idx
+            }
+        };
+        islands[idx].extend_from_slice(tri);
+    }
+
+    islands
+}
+
 pub struct UVPacker {
     charts: Vec<Chart>,
-    pub charts_lookup: Option<HashMap<usize, usize>>,
+    /// mesh_id -> indices into `charts` (several entries when `split_charts` is on)
+    pub charts_lookup: Option<HashMap<usize, Vec<usize>>>,
+    /// mesh_id -> vertex count of the input mesh
+    mesh_vertex_counts: HashMap<usize, usize>,
     width: u32,
     height: u32,
     area: f64,
     brute_force: bool,
     hole_filling: bool,
+    split_charts: bool,
     world_scale_exponent: f32,
     pub target: Option<Bitmap>,
     iterations: u32,
@@ -154,11 +258,13 @@ impl UVPacker {
         iterations: u32,
         brute_force: bool,
         hole_filling: bool,
+        split_charts: bool,
         world_scale_exponent: f32,
     ) -> Self {
         Self {
             charts: Vec::new(),
             charts_lookup: None,
+            mesh_vertex_counts: HashMap::new(),
             width,
             height,
             area: width as f64 * height as f64,
@@ -166,8 +272,48 @@ impl UVPacker {
             target: None,
             iterations,
             hole_filling,
+            split_charts,
             world_scale_exponent,
         }
+    }
+
+    fn build_chart(
+        positions: &[Vector3],
+        uvs: &[Vector2],
+        indices: Vec<u32>,
+        vertex_map: Vec<u32>,
+        user_scale_multiplier: f32,
+        mesh_id: usize,
+        world_scale_exponent: f32,
+    ) -> Chart {
+        let mut chart = Chart {
+            uvs: uvs.to_vec(),
+            base_uvs: Vec::new(),
+            indices,
+            mesh_id,
+            vertex_map,
+            uv_area: 0.0,
+            uv_bounds_area: 0.0,
+            bitmap: Bitmap::empty(),
+            placed_offset: (0, 0),
+            final_scale: 1.0,
+            world_scale_multiplier: 1.0,
+            user_scale_multiplier: 1.0,
+            chart_uv_min: Vector2::ZERO,
+        };
+
+        chart.offset_uvs();
+
+        chart.user_scale_multiplier = user_scale_multiplier;
+        chart.base_uvs = chart.uvs.clone();
+
+        let density = chart.calculate_area_multiplier(positions);
+
+        chart.world_scale_multiplier = density.powf(world_scale_exponent);
+        chart.uv_area = chart.calculate_uv_area();
+        chart.uv_bounds_area = chart.calculate_uv_bounds_area();
+
+        chart
     }
 
     pub fn add_mesh(
@@ -186,39 +332,71 @@ impl UVPacker {
             return;
         }
 
-        // todo split into charts for non scale offset mode
+        if indices.iter().any(|&i| i as usize >= positions.len()) {
+            return;
+        }
 
-        let mut chart = Chart {
-            uvs: uvs.to_vec(),
-            base_uvs: Vec::new(),
-            indices: indices.to_vec(),
-            mesh_id,
-            uv_area: 0.0,
-            uv_bounds_area: 0.0,
-            bitmap: Bitmap::empty(),
-            placed_offset: (0, 0),
-            final_scale: 1.0,
-            world_scale_multiplier: 1.0,
-            user_scale_multiplier: 1.0,
-            chart_uv_min: Vector2::ZERO,
-        };
+        self.mesh_vertex_counts.insert(mesh_id, positions.len());
 
-        chart.offset_uvs();
+        if !self.split_charts {
+            // whole mesh = one chart, vertex map is identity
+            let vertex_map: Vec<u32> = (0..positions.len() as u32).collect();
+            let chart = Self::build_chart(
+                positions,
+                uvs,
+                indices.to_vec(),
+                vertex_map,
+                user_scale_multiplier,
+                mesh_id,
+                self.world_scale_exponent,
+            );
+            self.charts.push(chart);
+            return;
+        }
 
-        chart.user_scale_multiplier = user_scale_multiplier;
-        chart.base_uvs = chart.uvs.clone();
+        let islands = split_into_islands(positions, uvs, indices);
 
-        let density = chart.calculate_area_multiplier(positions);
+        // scratch remap table: original vertex -> local vertex of the current island
+        let mut remap = vec![u32::MAX; positions.len()];
 
-        chart.world_scale_multiplier = density.powf(self.world_scale_exponent);
-        chart.uv_area = chart.calculate_uv_area();
-        chart.uv_bounds_area = chart.calculate_uv_bounds_area();
+        for tris in islands {
+            let mut vertex_map: Vec<u32> = Vec::new();
+            let mut local_indices: Vec<u32> = Vec::with_capacity(tris.len());
 
-        self.charts.push(chart);
+            for &v in &tris {
+                let slot = &mut remap[v as usize];
+                if *slot == u32::MAX {
+                    *slot = vertex_map.len() as u32;
+                    vertex_map.push(v);
+                }
+                local_indices.push(*slot);
+            }
+
+            let local_positions: Vec<Vector3> =
+                vertex_map.iter().map(|&v| positions[v as usize]).collect();
+            let local_uvs: Vec<Vector2> = vertex_map.iter().map(|&v| uvs[v as usize]).collect();
+
+            // reset scratch entries for the next island
+            for &v in &vertex_map {
+                remap[v as usize] = u32::MAX;
+            }
+
+            let chart = Self::build_chart(
+                &local_positions,
+                &local_uvs,
+                local_indices,
+                vertex_map,
+                user_scale_multiplier,
+                mesh_id,
+                self.world_scale_exponent,
+            );
+            self.charts.push(chart);
+        }
     }
 
     pub fn pack(&mut self) -> bool {
         if self.charts.is_empty() {
+            self.charts_lookup = Some(HashMap::new());
             return true;
         }
 
@@ -295,21 +473,27 @@ impl UVPacker {
             }
         }
 
-        let mut lookup = HashMap::with_capacity(self.charts.len());
+        let mut lookup: HashMap<usize, Vec<usize>> = HashMap::new();
         for (i, chart) in self.charts.iter().enumerate() {
-            lookup.insert(chart.mesh_id, i);
+            lookup.entry(chart.mesh_id).or_default().push(i);
         }
         self.charts_lookup = Some(lookup);
 
         true
     }
 
+    /// Single scale/offset for a whole mesh. Only meaningful when the mesh ended up as exactly
+    /// one chart (always the case with `split_charts == false`). With chart splitting use
+    /// `get_mesh_uvs` instead; for meshes with several charts this returns identity.
     pub fn get_scale_offset(&self, mesh_id: usize) -> (Vector2, Vector2) {
         let Some(lookup) = &self.charts_lookup else {
             return (Vector2::ONE, Vector2::ZERO);
         };
 
-        let chart = lookup.get(&mesh_id).map(|&i| &self.charts[i]);
+        let chart = match lookup.get(&mesh_id) {
+            Some(ids) if ids.len() == 1 => Some(&self.charts[ids[0]]),
+            _ => None,
+        };
 
         match chart {
             Some(chart) => {
@@ -329,6 +513,45 @@ impl UVPacker {
             }
             None => (Vector2::ONE, Vector2::ZERO),
         }
+    }
+
+    /// Number of vertices (= number of UVs) of the mesh that was passed to `add_mesh`.
+    pub fn get_mesh_vertex_count(&self, mesh_id: usize) -> Option<usize> {
+        self.mesh_vertex_counts.get(&mesh_id).copied()
+    }
+
+    /// Writes the packed (atlas-space, 0..1) UVs of a mesh into `out`.
+    ///
+    /// `out` must have exactly as many elements as the input mesh had vertices, and the
+    /// result is index-for-index compatible with the input mesh, so it can be assigned
+    /// directly to `mesh.uv`. Works in both modes. Vertices not referenced by any triangle
+    /// are written as (0, 0).
+    ///
+    /// Returns false if `pack` hasn't succeeded yet, the mesh is unknown, or the length
+    /// doesn't match.
+    pub fn get_mesh_uvs(&self, mesh_id: usize, out: &mut [Vector2]) -> bool {
+        let Some(lookup) = &self.charts_lookup else {
+            return false;
+        };
+        let Some(&count) = self.mesh_vertex_counts.get(&mesh_id) else {
+            return false;
+        };
+        if out.len() != count {
+            return false;
+        }
+
+        out.fill(Vector2::ZERO);
+
+        if let Some(chart_ids) = lookup.get(&mesh_id) {
+            for &ci in chart_ids {
+                let chart = &self.charts[ci];
+                for (local, &orig) in chart.vertex_map.iter().enumerate() {
+                    out[orig as usize] = chart.uvs[local];
+                }
+            }
+        }
+
+        true
     }
 
     fn try_pack_at_scale(&mut self, scale: f32) -> Option<Vec<(u32, u32)>> {
@@ -718,6 +941,7 @@ pub unsafe extern "C" fn uvpacker_create(
     iterations: u32,
     brute_force: bool,
     hole_filling: bool,
+    split_charts: bool,
     world_scale_exponent: f32,
 ) -> *mut UVPacker {
     Box::into_raw(Box::new(UVPacker::new(
@@ -726,6 +950,7 @@ pub unsafe extern "C" fn uvpacker_create(
         iterations,
         brute_force,
         hole_filling,
+        split_charts,
         world_scale_exponent,
     ))) as *mut UVPacker
 }
@@ -764,6 +989,8 @@ pub struct ScaleOffset {
     pub offset: Vector2,
 }
 
+/// Only valid for meshes that were packed as a single chart (split_charts == false).
+/// With chart splitting use `uvpacker_get_mesh_uvs`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn uvpacker_get_scale_offset(
     handle: *mut UVPacker,
@@ -774,6 +1001,39 @@ pub unsafe extern "C" fn uvpacker_get_scale_offset(
     let (scale, offset) = packer.get_scale_offset(chart as usize);
 
     ScaleOffset { scale, offset }
+}
+
+/// Returns the vertex count of the mesh registered under `mesh_id` (0 if unknown).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_get_mesh_vertex_count(
+    handle: *mut UVPacker,
+    mesh_id: u32,
+) -> u32 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    let packer = unsafe { &*handle };
+    packer.get_mesh_vertex_count(mesh_id as usize).unwrap_or(0) as u32
+}
+
+/// Fills `out_uvs` (length `out_count`, must equal the mesh's vertex count) with the packed
+/// UVs, index-compatible with the input mesh. Works in both modes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_get_mesh_uvs(
+    handle: *mut UVPacker,
+    mesh_id: u32,
+    out_uvs: *mut Vector2,
+    out_count: u32,
+) -> bool {
+    if handle.is_null() || out_uvs.is_null() {
+        return false;
+    }
+
+    let packer = unsafe { &*handle };
+    let out = unsafe { slice::from_raw_parts_mut(out_uvs, out_count as usize) };
+
+    packer.get_mesh_uvs(mesh_id as usize, out)
 }
 
 #[unsafe(no_mangle)]

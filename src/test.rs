@@ -364,9 +364,9 @@ mod tests {
 
     #[test]
     fn test_uv_packer() -> std::io::Result<()> {
-        let path = "tests/packuv.glb";
+        let path = "tests/packuv_split.glb";
 
-        let mut packer = UVPacker::new(1024, 1024, 25, true, true, 1.0);
+        let mut packer = UVPacker::new(1024, 1024, 25, true, true, false, 1.0);
 
         let (document, buffers, _) =
             gltf::import(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
