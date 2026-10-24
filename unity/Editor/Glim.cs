@@ -659,11 +659,16 @@ namespace Glim
 
                         lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
 
-                        if (lightmapGroup.packingType == UVPackingType.SplitCharts)
+                        var uvMeshProp = lmData.FindPropertyRelative("uvMesh");
+                        if (lightmapGroup.packingType == UVPackingType.SplitCharts && mr.enlightenVertexStream)
                         {
                             Mesh uvMesh = mr.enlightenVertexStream;
                             AssetDatabase.AddObjectToAsset(uvMesh, lda.targetObject);
-                            lmData.FindPropertyRelative("uvMesh").objectReferenceValue = uvMesh;
+                            uvMeshProp.objectReferenceValue = uvMesh;
+                        }
+                        else
+                        {
+                            uvMeshProp.objectReferenceValue = null;
                         }
                     }
 
@@ -754,6 +759,7 @@ namespace Glim
                     lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
                     lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
                     lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
+                    lmData.FindPropertyRelative("uvMesh").objectReferenceValue = null;
                 }
 
                 groupIndex++;
