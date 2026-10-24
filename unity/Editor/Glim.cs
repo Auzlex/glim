@@ -609,7 +609,13 @@ namespace Glim
                     {
                         foreach (var r in renderers)
                         {
+                            if (r is MeshRenderer mr)
+                            {
+                                mr.enlightenVertexStream = null;
+                                mr.additionalVertexStreams = null;
+                            }
                             r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
+                            EditorUtility.SetDirty(r);
                         }
                     }
                 }
