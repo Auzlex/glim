@@ -505,7 +505,7 @@ namespace Glim
                 if (true)
                 {
 
-                    if (lightmapGroup.packingType == UVPackingType.ScaleOffset || lightmapGroup.packingType == UVPackingType.ChartSplitting)
+                    if (lightmapGroup.packingType == UVPackingType.ScaleOffset || lightmapGroup.packingType == UVPackingType.SplitCharts)
                     {
                         var sw = new Stopwatch();
                         sw.Start();
@@ -513,7 +513,7 @@ namespace Glim
                         bool bruteForce = lightmapGroup.bruteForce;
                         bool holeFilling = lightmapGroup.holeFilling;
                         float worldScaleExponent = lightmapGroup.scaleExponent;
-                        bool split = lightmapGroup.packingType == UVPackingType.ChartSplitting;
+                        bool split = lightmapGroup.packingType == UVPackingType.SplitCharts;
                         var packer = UVPacking.uvpacker_create(lightmapGroup.Width, lightmapGroup.Height, lightmapGroup.packingIterations, bruteForce, holeFilling, split, worldScaleExponent);
                         for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
                         {

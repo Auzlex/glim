@@ -14,7 +14,7 @@ namespace Glim
     {
         None = 0,
         ScaleOffset = 1,
-        ChartSplitting = 2,
+        SplitCharts = 2,
     }
 
     public enum Resolution : uint
