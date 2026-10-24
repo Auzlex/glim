@@ -1,5 +1,12 @@
 # [Glim](https://github.com/z3y/glim)
 
+# v0.11.1 (Auzlex Fork)
+
+- Rebased onto upstream v0.11.0
+- Fixed lower LOD renderers not receiving lighting at runtime
+  - Lower LOD meshes now share the lightmap index and scale/offset of their LOD0 counterpart in the LightingDataAsset
+  - Lower LODs continue to be excluded from the shadow/GI BVH and lightmap atlas to prevent doubled shadows and light leaking
+
 # v0.11.0
 
 - New higher quality UV packing mode: Split Charts
@@ -7,8 +14,10 @@
   - Generated UV Meshes are stored in the Lighting Data Asset file itself, which Unity applies at runtime
   - At build time these UVs get merged into the statically batched mesh, without taking up additional memory
   - Only works with static batching
+
 - GlimLightmapGroupSelector now works on Unity Terrains
   - Allows overriding the terrain lightmap resolution
+
 
 # v0.10.0
 
