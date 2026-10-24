@@ -696,8 +696,18 @@ namespace Glim
 
                 var mesh = TerrainExporter.GenerateMesh(data, position, step: 4);
 
-                var terrainGroup = ScriptableObject.CreateInstance<GlimLightmapGroup>();
+                GlimLightmapGroup terrainGroup = null;
+                var selector = terrain.GetComponent<GlimLightmapGroupSelector>();
+                if (selector && selector.group)
+                {
+                    terrainGroup = selector.group;
+                }
+                else
+                {
+                    terrainGroup = ScriptableObject.CreateInstance<GlimLightmapGroup>();
+                }
                 terrainGroup.packingType = UVPackingType.None;
+                EditorUtility.SetDirty(terrainGroup);
 
                 groups.Add(new BakeContextGroup(terrainGroup, terrain));
 
