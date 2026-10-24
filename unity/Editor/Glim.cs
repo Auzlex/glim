@@ -577,6 +577,7 @@ namespace Glim
                                         clone.name = "GlimUV_" + clone.name;
                                         clone.uv2 = uvs;
                                         mr.enlightenVertexStream = clone;
+                                        mr.additionalVertexStreams = null;
                                         r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
                                     }
                                     else
@@ -613,6 +614,7 @@ namespace Glim
                             {
                                 mr.enlightenVertexStream = null;
                                 mr.additionalVertexStreams = null;
+                                EditorUtility.SetDirty(mr);
                             }
                             r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
                             EditorUtility.SetDirty(r);
